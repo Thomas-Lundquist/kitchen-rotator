@@ -1,0 +1,1609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kitchen Rotation Tool</title>
+
+<!-- Student names live only in this browser's localStorage and are never put
+     into a request by this page. The policy below makes that a rule the
+     browser enforces rather than a promise this code keeps:
+       connect-src 'none'  blocks fetch, XHR, WebSocket and sendBeacon
+       form-action 'none'  blocks any form POST
+       default-src 'none'  nothing loads unless named explicitly below
+     The only outbound requests permitted are stylesheet and font files from
+     Google Fonts. Those carry no page data; they reveal an IP and
+     User-Agent, as any web request does. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data:; connect-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'; frame-src 'none'">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+  /* Kitchen Rotation Tool.
+     Read two ways: by the teacher on a laptop, and by a room of
+     students off a wall TV. Neutrals stay cool and quiet so the
+     course accents (orange for Culinary 1, gold for Culinary 2)
+     are the only warm colour and carry the meaning. */
+
+  /* Light theme (default) */
+  :root{
+    /* type — system stacks only; this file must work with no network */
+    --font:"Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI Variable Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-display:"Barlow Semi Condensed", "Bahnschrift", "DIN Alternate", "DIN Condensed", "Avenir Next Condensed", "Segoe UI Variable Display", system-ui, sans-serif;
+    --font-stretch-display:87.5%;
+
+    /* steel neutrals */
+    --canvas:#D9DEE6;
+    --surface:#FFFFFF;
+    --surface-alt:#F4F6F8;
+    --surface-sunken:#DDE2E9;
+    --surface-hover:#EEF1F4;
+    --line:#A5AFBF;
+    --line-strong:#788395;
+    --char:#161A20;          /* primary text */
+    --muted:#656D7A;
+    --placeholder:#A8AFBA;
+    --field-border:#C3C9D2;
+
+    /* structural dark bands (stay dark in BOTH themes — they are
+       structure, not surface: column headers, table headers, toast) */
+    --band:#1B1F26;
+    --band-ink:#FFFFFF;
+    --band-ink-soft:#A9B2BF;
+    --header-bg:#1B1F26;
+
+    /* course accents */
+    --c1:#E0761B; --c1-dark:#B85D12; --c1-tint:#FDF1E5;
+    --c2:#C39A1E; --c2-navy:#16233B; --c2-tint:#FBF4DF;
+    --sink:#0E7490; --sink-deep:#0A5A72;
+    --bad:#C0392B; --good:#3F7A52;
+
+    --sink-idle-bg:#F0F2F5; --sink-idle-text:#AEB5BF;
+    --empty-slot-bg:#F4F6F8;
+
+    /* fullscreen board */
+    --fs-bg:#D9DEE6; --fs-line:#788395;
+    --fs-head-bg:#262C36; --fs-head-text:#FFFFFF;
+    --fs-label-bg:#F4F6F8; --fs-label-text:#0F6E96; --fs-duty-label-text:#8A5A1C;
+    --fs-name-bg:#FFFFFF; --fs-name-text:#13171D;
+    --fs-duty-bg:#FDF4E7; --fs-duty-text:#74490F;
+    --fs-sink-bg:#EDEFF2; --fs-sink-text:#AEB5BF;
+    --fs-card-bg:#FFFFFF; --fs-card-border:#788395;
+    --fs-title-text:#13171D; --fs-timer-label:#656D7A; --fs-timer-value:#13171D;
+    --fs-empty-text:#7D8694; --fs-select-border:#C3C9D2;
+    --fs-alert-bg:#FDEDEA; --fs-alert-text:#A93226;
+
+    /* elevation — three tiers, each visually distinct */
+    --e1:0 1px 2px rgba(16,20,26,.06), 0 1px 1px rgba(16,20,26,.04);
+    --e2:0 2px 4px rgba(16,20,26,.07), 0 6px 14px rgba(16,20,26,.08);
+    --e3:0 2px 8px rgba(16,20,26,.10), 0 12px 32px rgba(16,20,26,.18);
+    --ring:0 0 0 3px rgba(224,118,27,.38);
+
+    --cell-sheen:rgba(255,255,255,0);
+    --r-sm:4px; --r-md:8px; --r-lg:12px;
+  }
+
+  /* Dark theme */
+  [data-theme="dark"]{
+    --canvas:#06080B;
+    --surface:#1C222B;
+    --surface-alt:#232933;
+    --surface-sunken:#12151A;
+    --surface-hover:#252B34;
+    --line:#4D5869;
+    --line-strong:#626E7F;
+    --char:#E8EBF0;
+    --muted:#8B94A3;
+    --placeholder:#5A6372;
+    --field-border:#3A424E;
+
+    --band:#0A0D12;
+    --band-ink:#FFFFFF;
+    --band-ink-soft:#8B94A3;
+    --header-bg:#0A0D12;
+
+    --c1-tint:#2A1E12; --c2-tint:#241F12;
+
+    --sink-idle-bg:#1E232B; --sink-idle-text:#4E5767;
+    --empty-slot-bg:#14181E;
+
+    --fs-bg:#06080B; --fs-line:#626E7F;
+    --fs-head-bg:#222935; --fs-head-text:#FFFFFF;
+    --fs-label-bg:#14181E; --fs-label-text:#7FD0F5; --fs-duty-label-text:#D4A868;
+    --fs-name-bg:#242B35; --fs-name-text:#FFFFFF;
+    --fs-duty-bg:#241C12; --fs-duty-text:#FFD9A8;
+    --fs-sink-bg:#1C222B; --fs-sink-text:#5C6878;
+    --fs-card-bg:#1C222B; --fs-card-border:#626E7F;
+    --fs-title-text:#FFFFFF; --fs-timer-label:#8B94A3; --fs-timer-value:#FFFFFF;
+    --fs-empty-text:#7D8694; --fs-select-border:#3A424E;
+    --fs-alert-bg:#3A1A16; --fs-alert-text:#FF8A75;
+
+    /* on dark, shadow alone is nearly invisible — pair it with a
+       hairline top highlight so raised things still read as raised */
+    --e1:0 1px 2px rgba(0,0,0,.55);
+    --e2:0 2px 6px rgba(0,0,0,.55), 0 8px 20px rgba(0,0,0,.45);
+    --e3:0 3px 10px rgba(0,0,0,.55), 0 14px 38px rgba(0,0,0,.65);
+    --cell-sheen:rgba(255,255,255,.055);
+    --ring:0 0 0 3px rgba(224,118,27,.45);
+  }
+
+  *{box-sizing:border-box;}
+
+  html, body{height:100%;}
+  body{
+    margin:0; font-family:var(--font);
+    background:var(--canvas); color:var(--char);
+    line-height:1.45; font-size:15px;
+  }
+
+  /* visible keyboard focus everywhere */
+  :focus-visible{outline:2px solid var(--c1); outline-offset:2px; border-radius:3px;}
+
+  @media (prefers-reduced-motion: reduce){
+    *{transition:none !important; animation:none !important;}
+  }
+
+  /* App bar */
+  header{
+    background:var(--header-bg); color:var(--band-ink);
+    padding:14px 22px; box-shadow:var(--e2);
+    display:flex; align-items:center; justify-content:space-between;
+    flex-wrap:wrap; gap:12px;
+    position:sticky; top:0; z-index:40;
+  }
+  header h1{
+    margin:0; font-family:var(--font-display);
+    font-size:1.2rem; font-weight:600;
+  }
+  header .sub{font-size:.76rem; color:var(--band-ink-soft); margin-top:1px;}
+  .hbtns{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+
+  /* Buttons */
+  button{
+    font-family:inherit; cursor:pointer; border:none; border-radius:var(--r-sm);
+    padding:8px 14px; font-size:.84rem; font-weight:600;
+    display:inline-flex; align-items:center; justify-content:center; gap:6px;
+    transition:background-color .14s ease, border-color .14s ease,
+               box-shadow .14s ease, transform .08s ease, color .14s ease;
+  }
+  button:active{transform:translateY(1px);}
+  .btn-primary{background:var(--c1); color:#fff; box-shadow:var(--e1);}
+  .btn-primary:hover{background:var(--c1-dark); box-shadow:var(--e2);}
+  .btn-secondary{background:var(--surface-sunken); color:var(--char);}
+  .btn-secondary:hover{background:var(--surface-hover);}
+  .btn-outline{background:transparent; color:var(--band-ink); border:1px solid rgba(255,255,255,.28);}
+  .btn-outline:hover{border-color:rgba(255,255,255,.55); background:rgba(255,255,255,.08);}
+  .btn-danger{background:var(--bad); color:#fff;}
+  .btn-danger:hover{filter:brightness(1.08);}
+  /* outline button for use on LIGHT surfaces (the plain .btn-outline is
+     white-on-dark, for the app bar and block headers) */
+  .btn-quiet{background:transparent; color:var(--char); border:1px solid var(--field-border);}
+  .btn-quiet:hover{background:var(--surface-hover); border-color:var(--line-strong);}
+
+  /* Tabs */
+  nav.tabs{
+    display:flex; gap:4px; background:var(--canvas);
+    padding:12px 22px 0; border-bottom:1px solid var(--line);
+  }
+  nav.tabs button{
+    background:transparent; color:var(--muted); border-radius:var(--r-sm) var(--r-sm) 0 0;
+    padding:9px 18px; font-size:.86rem; font-weight:600;
+    border-bottom:2px solid transparent; margin-bottom:-1px;
+  }
+  nav.tabs button:hover{color:var(--char); background:var(--surface-hover);}
+  nav.tabs button.active{
+    background:var(--surface); color:var(--char);
+    border:1px solid var(--line); border-bottom:1px solid var(--surface);
+  }
+
+  main{padding:22px; padding-bottom:64px;}
+  .day-panel{display:none;}
+  .day-panel.active{display:block;}
+
+  /* Block card */
+  .block-card{
+    background:var(--surface); border:1px solid var(--line-strong); border-radius:var(--r-md);
+    margin-bottom:20px; overflow:hidden; box-shadow:var(--e2);
+  }
+  .block-head{
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+    padding:11px 14px; background:var(--band); color:var(--band-ink);
+  }
+  .block-head.c2{background:var(--c2-navy);}
+  .block-head input.hdr-field, .block-head select.hdr-field{
+    font-family:inherit; font-size:.86rem; padding:6px 9px;
+    border-radius:var(--r-sm); border:1px solid var(--field-border);
+    background:var(--surface); color:var(--char); min-width:140px;
+  }
+  .block-head select.hdr-field{cursor:pointer;}
+  .block-head .id-badge-select{
+    font-family:var(--font-display);
+    font-weight:700; font-size:.88rem; background:rgba(255,255,255,.14);
+    color:#fff; border:1px solid rgba(255,255,255,.3);
+    padding:6px 9px; border-radius:var(--r-sm);
+    min-width:auto; cursor:pointer;
+  }
+  .block-head .id-badge-select option{color:#000;}
+  .block-actions{margin-left:auto; display:flex; gap:6px; flex-wrap:wrap;}
+  .block-actions button{padding:6px 11px; font-size:.78rem;}
+
+  /* Kitchen grid.
+     Every cell is a DIRECT child of .kitchen-grid, emitted row-major
+     (header row, each seat row, duty row, centre-sink row). Grid's
+     auto-placement lines them into the label + 8 kitchen columns and
+     sizes each row to its tallest cell ACROSS all columns, so duty
+     text wrapping in one kitchen moves that whole row, not just the
+     one column. Seat inputs and seat labels share an explicit equal
+     height so the two never drift apart. */
+  .kitchen-grid{
+    display:grid; grid-template-columns:auto repeat(8,1fr); gap:1px;
+    background:var(--line-strong); border-top:1px solid var(--line-strong);
+  }
+  .empty{opacity:.5;}
+  .khead{
+    font-family:var(--font-display); font-stretch:var(--font-stretch-display);
+    font-size:.86rem; font-weight:700; letter-spacing:.05em;
+    text-align:center; padding:8px 2px;
+    background:var(--band); color:var(--band-ink);
+  }
+  input.seat{
+    box-sizing:border-box; height:46px; border:none;
+    padding:0 4px; font-size:.95rem; margin:0; line-height:normal;
+    width:100%; font-family:inherit; text-align:center;
+    background:var(--surface); color:var(--char); font-weight:600;
+    transition:background-color .12s ease;
+  }
+  input.seat::placeholder{color:var(--placeholder); font-weight:400;}
+  input.seat:focus{background:var(--c1-tint); outline:2px solid var(--c1); outline-offset:-2px;}
+  input.seat.split-cell{color:var(--bad); font-style:italic; font-size:.74rem; font-weight:600;}
+  .seat-label{
+    box-sizing:border-box; height:46px; display:flex; align-items:center; justify-content:flex-end;
+    padding:0 12px; font-size:.82rem; font-weight:600; color:var(--char);
+    background:var(--surface-alt); white-space:nowrap;
+  }
+  .duty.label-row, .centersink.label-row{
+    background:var(--surface-alt); color:var(--muted); font-weight:600;
+    text-align:right; justify-content:flex-end; padding-right:12px;
+  }
+  .duty{
+    font-size:.72rem; padding:8px 5px; text-align:center; color:var(--char);
+    background:var(--c1-tint); border-top:2px solid var(--c1); white-space:pre-line;
+    font-weight:600; display:flex; align-items:center; justify-content:center;
+  }
+  .block-head.c2 ~ .kitchen-grid .duty,
+  .block-card:has(.block-head.c2) .duty{background:var(--c2-tint); border-top-color:var(--c2);}
+  .centersink{
+    font-size:.7rem; padding:6px 4px; text-align:center;
+    background:var(--sink-idle-bg); color:var(--sink-idle-text);
+    display:flex; align-items:center; justify-content:center; min-height:24px;
+  }
+  .centersink.active{
+    background:var(--sink); color:#fff; font-weight:700;
+    box-shadow:inset 0 0 0 2px var(--sink-deep);
+  }
+
+  /* Empty slot */
+  .empty-slot-card{
+    display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
+    padding:18px 20px; background:var(--empty-slot-bg);
+    border:1px dashed var(--line-strong); box-shadow:none;
+  }
+  .empty-slot-label{font-size:.9rem; font-weight:600; color:var(--muted);}
+
+  /* Tables */
+  .duties-panel{max-width:860px;}
+  table.duty-table{
+    width:100%; border-collapse:separate; border-spacing:0;
+    background:var(--surface); border:1px solid var(--line-strong);
+    border-radius:var(--r-md); overflow:hidden; box-shadow:var(--e2);
+  }
+  table.duty-table th, table.duty-table td{
+    border-bottom:1px solid var(--line); border-right:1px solid var(--line);
+    padding:9px 10px; font-size:.82rem; text-align:center;
+  }
+  table.duty-table th{border-right-color:rgba(255,255,255,.18);}
+  table.duty-table th:last-child, table.duty-table td:last-child{border-right:none;}
+  table.duty-table tr:last-child td{border-bottom:none;}
+  table.duty-table th{
+    background:var(--band); color:var(--band-ink); font-weight:600;
+    font-size:.78rem;
+  }
+  table.duty-table td:first-child, table.duty-table th:first-child{text-align:left; min-width:220px;}
+  table.duty-table input[type=text]{
+    width:100%; border:1px solid var(--line); padding:6px 8px; font-family:inherit;
+    font-size:.84rem; border-radius:var(--r-sm); background:var(--surface); color:var(--char);
+  }
+  table.duty-table input[type=text]:focus{border-color:var(--c1); outline:none; box-shadow:var(--ring);}
+  table.duty-table input[type=checkbox]{width:17px; height:17px; accent-color:var(--c1); cursor:pointer;}
+  .add-duty-row{margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;}
+
+  /* Modal */
+  .modal-bg{
+    position:fixed; inset:0; background:rgba(8,11,15,.55); display:none;
+    align-items:center; justify-content:center; z-index:50;
+  }
+  .modal-bg.show{display:flex;}
+  .modal{
+    background:var(--surface); color:var(--char); border-radius:var(--r-lg);
+    padding:22px 24px; width:min(540px,92vw); max-height:85vh; overflow:auto;
+    box-shadow:var(--e3); border:1px solid var(--line-strong);
+  }
+  .modal h3{margin:0 0 4px; font-family:var(--font-display); font-size:1.1rem; font-weight:600;}
+  .modal textarea{
+    width:100%; min-height:160px; font-family:inherit; font-size:.85rem; padding:10px;
+    border:1px solid var(--line); border-radius:var(--r-sm);
+    background:var(--surface); color:var(--char); resize:vertical;
+  }
+  .modal textarea:focus{border-color:var(--c1); outline:none; box-shadow:var(--ring);}
+  .modal input[type=file]{font-family:inherit; font-size:.82rem; color:var(--char);}
+  .modal .modal-btns{display:flex; justify-content:flex-end; gap:8px; margin-top:16px;}
+  .hint{font-size:.79rem; color:var(--muted); margin-top:6px; line-height:1.5; max-width:68ch;}
+
+  /* Toast */
+  .toast{
+    position:fixed; bottom:20px; right:20px; background:var(--band); color:var(--band-ink);
+    padding:11px 16px; border-radius:var(--r-md); font-size:.85rem; box-shadow:var(--e3);
+    opacity:0; transform:translateY(8px); z-index:99; max-width:340px;
+    transition:opacity .2s ease, transform .2s ease;
+    pointer-events:none;
+  }
+  .toast.show{opacity:1; transform:translateY(0);}
+
+
+  /* Dropdown menu */
+  .menu-trigger{font-size:1rem; padding:6px 10px; line-height:1;}
+  .dropdown-menu{
+    position:fixed; display:none; background:var(--surface);
+    border:1px solid var(--line); border-radius:var(--r-md);
+    box-shadow:var(--e3); min-width:210px; z-index:150; overflow:hidden; padding:4px;
+    border-color:var(--line-strong);
+  }
+  .dropdown-menu.show{display:block;}
+  .dropdown-menu button{
+    display:flex; width:100%; text-align:left; justify-content:flex-start;
+    background:transparent; color:var(--char);
+    padding:9px 12px; font-weight:500; font-size:.85rem; border-radius:var(--r-sm);
+  }
+  .dropdown-menu button:hover{background:var(--surface-hover);}
+
+  /* Fullscreen board.
+     Height constraint chain: every level from the fixed overlay down
+     to .fs-grid must be a shrinkable flex item (flex + min-height:0),
+     or the 100vh bound never reaches the grid and it grows past the
+     screen. Font sizes here are set by the JS fitter, so never give
+     these elements a font-size transition or measurements get taken
+     mid-animation. */
+  .fs-overlay{
+    position:fixed; inset:0; background:var(--fs-bg); z-index:200; display:none;
+    overflow:hidden;
+  }
+  .fs-overlay.show{display:flex;}
+  #fsScaleWrap{
+    box-sizing:border-box; padding:14px 18px 16px;
+    width:100vw; height:100vh;
+    display:flex; flex-direction:column; min-height:0;
+  }
+  #fsContent{
+    flex:1 1 auto; min-height:0;
+    display:flex; flex-direction:column; width:100%;
+  }
+  .fs-header{display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:12px; flex:0 0 auto;}
+  .fs-label{
+    font-family:var(--font-display);
+    font-size:clamp(1.4rem, 2.1vw, 2.2rem);
+    display:flex; align-items:baseline; gap:.55em;
+  }
+  .fs-label-id{font-family:var(--font-display); font-stretch:var(--font-stretch-display); font-weight:700; letter-spacing:.03em; color:var(--fs-title-text);}
+  .fs-label-class{font-weight:400; color:var(--fs-timer-label);}
+  .fs-schedule-picker{margin-left:auto;}
+  .fs-schedule-picker select{
+    font-family:inherit; font-size:.9rem; padding:7px 10px; border-radius:var(--r-sm);
+    border:1px solid var(--fs-select-border); background:var(--fs-card-bg); color:var(--fs-title-text);
+  }
+  .fs-header .btn-outline{
+    color:var(--fs-title-text); border-color:var(--fs-select-border);
+    padding:8px 16px; font-size:.88rem;
+  }
+  .fs-header .btn-outline:hover{background:rgba(127,127,127,.14); border-color:var(--fs-title-text);}
+
+  .fs-timers{display:flex; gap:12px; flex-wrap:nowrap; margin-bottom:10px; flex:0 0 auto;}
+  .fs-timer-card{
+    flex:1 1 0; min-width:0; background:var(--fs-card-bg);
+    border:2px solid var(--fs-card-border); border-radius:var(--r-md);
+    padding:8px 16px; text-align:center; box-shadow:var(--e1);
+  }
+  .fs-timer-label{
+    font-size:clamp(.8rem, .95vw, 1.1rem); color:var(--fs-timer-label);
+    font-weight:600; margin-bottom:2px;
+  }
+  .fs-timer-value{
+    font-family:var(--font-display); font-stretch:var(--font-stretch-display);
+    font-size:clamp(1.8rem, 3vw, 3rem); font-weight:700; color:var(--fs-timer-value);
+    font-variant-numeric:tabular-nums; line-height:1.1;
+  }
+  .fs-timer-card.fs-alert{border-color:var(--bad); background:var(--fs-alert-bg);}
+  .fs-timer-card.fs-alert .fs-timer-value,
+  .fs-timer-card.fs-alert .fs-timer-label{color:var(--fs-alert-text);}
+  .fs-timer-card.fs-over{opacity:.55;}
+  .fs-timer-card.fs-na{flex:1 1 100%; padding:14px; font-size:.95rem; color:var(--fs-timer-label);}
+
+  /* Shared-label grid: job titles appear ONCE down the left column so
+     each kitchen column spends its whole width on the student's name.
+     grid-template-columns/rows are set inline per render because the
+     kitchen count and the number of used job rows vary by day. */
+  .fs-grid{
+    display:grid; gap:3px; background:var(--fs-line);
+    border:3px solid var(--fs-line); border-radius:var(--r-md);
+    overflow:hidden; width:100%; flex:1 1 auto; min-height:0;
+    box-shadow:var(--e2);
+  }
+  .fs-ghead{
+    background:var(--fs-head-bg); color:var(--fs-head-text);
+    font-family:var(--font-display); font-stretch:var(--font-stretch-display);
+    font-weight:700; text-align:center; letter-spacing:.04em;
+    padding:4px 8px; white-space:nowrap; overflow:hidden;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .fs-glabel{
+    background:var(--fs-label-bg); color:var(--fs-label-text);
+    font-family:var(--font-display); font-stretch:var(--font-stretch-display);
+    font-weight:600; letter-spacing:.015em;
+    white-space:nowrap; padding:4px 16px; overflow:hidden;
+    display:flex; align-items:center; justify-content:flex-start;
+  }
+  .fs-glabel.fs-glabel-duty{color:var(--fs-duty-label-text);}
+  .fs-gname{
+    background:var(--fs-name-bg); color:var(--fs-name-text);
+    font-family:var(--font-display); font-stretch:var(--font-stretch-display);
+    font-weight:600; white-space:nowrap; letter-spacing:.005em;
+    text-align:center; padding:2px 6px; overflow:hidden; min-width:0;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:inset 0 1px 0 var(--cell-sheen);
+  }
+  .fs-gduty{
+    background:var(--fs-duty-bg); color:var(--fs-duty-text);
+    font-family:var(--font-display); font-stretch:var(--font-stretch-display);
+    font-weight:600; white-space:pre-line;
+    line-height:1.25; text-align:center; padding:4px 8px; overflow:hidden; min-width:0;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .fs-gsink{
+    background:var(--fs-sink-bg); color:var(--fs-sink-text);
+    font-family:var(--font-display); font-stretch:var(--font-stretch-display);
+    font-weight:600; letter-spacing:.02em;
+    text-align:center; padding:4px;
+    overflow:hidden; display:flex; align-items:center; justify-content:center;
+  }
+  .fs-gsink.active{background:var(--sink); color:#fff;}
+  .fs-icon, .icon{width:1em; height:1em; vertical-align:-0.15em; margin-right:6px; flex:0 0 auto;}
+  .icon-solo{margin-right:0;}
+  .fs-empty{color:var(--fs-empty-text); font-size:1.1rem;}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Kitchen Rotation Tool</h1>
+    <div class="sub">Runs in this browser only. Nothing leaves this computer.</div>
+  </div>
+  <div class="hbtns">
+    <button class="btn-primary" onclick="rotateAll()">Rotate all jobs</button>
+    <button class="btn-outline" id="themeToggle" onclick="toggleTheme()">Dark</button>
+    <button class="btn-outline" onclick="openMenu(event, this, backupMenuHtml())">Backup</button>
+    <input type="file" id="restoreFile" accept=".json" style="display:none" onchange="loadBackupFile(this)">
+  </div>
+</header>
+
+<nav class="tabs">
+  <button id="tab-A" class="active" onclick="switchTab('A')">A Day</button>
+  <button id="tab-B" onclick="switchTab('B')">B Day</button>
+  <button id="tab-duties" onclick="switchTab('duties')">Extra duties</button>
+  <button id="tab-jobs" onclick="switchTab('jobs')">Job titles</button>
+</nav>
+
+<main>
+  <div id="panel-A" class="day-panel active"></div>
+  <div id="panel-B" class="day-panel"></div>
+  <div id="panel-duties" class="day-panel duties-panel">
+    <p class="hint">Tick the blocks each duty applies to. Duties move one kitchen along every time that block advances.</p>
+    <table class="duty-table" id="dutyTable"></table>
+    <div class="add-duty-row">
+      <button class="btn-secondary" onclick="addDuty()">Add duty</button>
+      <button class="btn-quiet" onclick="loadDefaultDuties()">Load standard duty list</button>
+    </div>
+  </div>
+  <div id="panel-jobs" class="day-panel duties-panel">
+    <p class="hint">Job titles belong to the seat, not the student. Whoever rotates into the first seat holds the first job that day. A kitchen of 3 uses only the first 3 titles.</p>
+    <table class="duty-table" id="jobTitleTable"></table>
+  </div>
+</main>
+
+<div class="modal-bg" id="importModalBg">
+  <div class="modal">
+    <h3 id="importModalTitle">Import roster</h3>
+    <p class="hint">Upload a CSV attendance export and the Student column is found for you, or paste names below, one per line. "Archer, Kelly Noel" becomes "Kelly A." A plain first name is used as written. Names are shuffled and split as evenly as possible, 4 to a kitchen where the numbers allow. This replaces the roster for this block and resets its duty rotation.</p>
+    <input type="file" accept=".csv" id="attendanceFile" onchange="handleAttendanceFile(this)" style="margin-bottom:10px;">
+    <textarea id="importText" placeholder="Archer, Kelly Noel&#10;Bagley, Norah Kathleen&#10;Bowman, Cache..."></textarea>
+    <div class="modal-btns">
+      <button class="btn-quiet" onclick="closeImportModal()">Cancel</button>
+      <button class="btn-primary" onclick="confirmImport()">Import</button>
+    </div>
+  </div>
+</div>
+
+<div class="fs-overlay" id="fullscreenOverlay">
+  <div id="fsScaleWrap"><div id="fsContent"></div></div>
+</div>
+
+<div class="dropdown-menu" id="genericMenu"></div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const MAX_KITCHEN = 5;      // hard cap — seat rows per kitchen, never exceeded
+const TARGET_KITCHEN_SIZE = 4; // ideal students per kitchen when importing
+const NUM_KITCHENS = 8;
+
+const INITIAL_BLOCKS = [
+  {id:'A1', day:'A', course:2}, {id:'A2', day:'A', course:1}, {id:'A3', day:'A', course:1},
+  {id:'B1', day:'B', course:1}, {id:'B2', day:'B', course:1}, {id:'B3', day:'B', course:2}
+];
+// course:1 = Culinary 1 styling, 2 = Culinary 2 styling (just visual accent; edit freely per block)
+// "id" is a block's permanent internal identity — its roster, duty pool,
+// and duty-applicability checkboxes always stay attached to this id.
+//
+// state.slots.A / state.slots.B are FIXED-LENGTH-4 arrays (one entry per
+// physical time block of the day, matching the bell schedule) holding
+// either a block id or null. null means that period is a prep period /
+// unused that day — not every day needs all 4 filled, and which ones are
+// filled can change freely (a prep period moving at semester, selling a
+// period, etc.) without any fixed assumption about which 3 are "the" ones.
+// state.nextNum tracks the next never-used number per day for naming newly
+// created classes; it never reuses a number even after a class is removed.
+
+function allBlockIds(){ return [...state.slots.A, ...state.slots.B].filter(Boolean); }
+
+const STORAGE_KEY = 'kitchenRotationTool_v1';
+
+function emptyKitchen(){ return { students: [], original: [] }; }
+
+const DEFAULT_DUTIES = [
+  { text:'Sweep Around/Behind Supply Table Area', apply:{A1:true,A2:true,A3:true,B1:true,B2:true,B3:true} },
+  { text:'Sweep Under/Around Your Kitchen Table', apply:{A1:true,A2:true,A3:true,B1:true,B2:true,B3:true} },
+  { text:'Clean/Sanitize Fridge & Freezer Doors/Handles', apply:{A1:true,A2:true,A3:true,B1:true,B2:true,B3:true} },
+  { text:'Rotate or Start Laundry', apply:{A1:false,A2:false,A3:false,B1:false,B2:false,B3:false} },
+  { text:'Sweep & Mop Between Kitchens & Under Drying Shelves', apply:{A1:true,A2:true,A3:true,B1:true,B2:true,B3:true} },
+  { text:'Wipe Your Kitchen Walls with Cleaner', apply:{A1:true,A2:true,A3:true,B1:true,B2:true,B3:true} },
+  { text:'Clean/Sanitize Supply Table', apply:{A1:true,A2:true,A3:true,B1:true,B2:true,B3:true} },
+  { text:'Clean/Sanitize All Horizontal Surfaces in Your Kitchen', apply:{A1:true,A2:true,A3:true,B1:true,B2:true,B3:true} },
+  { text:'Clean Teacher Dishes / Put Teacher Dishes Away', apply:{A1:true,A2:true,A3:true,B1:true,B2:true,B3:true} },
+  { text:'Clean Handwashing Sink with Cleaner and Sanitizer & Mop Underneath Handwashing Sink', apply:{A1:true,A2:true,A3:true,B1:true,B2:true,B3:true} }
+];
+
+function blankBlock(day, course){
+  return {
+    day, course,
+    className: course===2 ? 'Culinary 2' : 'Culinary 1',
+    kitchens: Array.from({length:NUM_KITCHENS}, emptyKitchen),
+    dutyIndex: 0, centerSink: 0
+  };
+}
+
+const DEFAULT_JOB_TITLES = ['Manager', 'Head Chef', 'Sous Chef', 'Kitchen Porter', 'Dishwasher'];
+const OLD_DEFAULT_JOB_TITLES = ['Head Chef', 'Sous Chef', 'Prep Cook', 'Dishwasher', 'Cleanup Crew'];
+
+function freshState(){
+  const blocks = {};
+  INITIAL_BLOCKS.forEach(b=>{ blocks[b.id] = blankBlock(b.day, b.course); });
+  const duties = DEFAULT_DUTIES.map(d => ({ text:d.text, apply:{...d.apply} }));
+  return {
+    blocks, duties,
+    jobTitles: [...DEFAULT_JOB_TITLES],
+    slots: { A: ['A1','A2','A3',null], B: ['B1','B2','B3',null] },
+    nextNum: { A: 4, B: 4 }
+  };
+}
+
+let state = loadState();
+
+// Merges saved data onto a fresh default shape, so older saves upgrade
+// cleanly instead of breaking. Handles three prior shapes: current
+// (slots + nextNum), the brief order-array version (order + nextNum, no
+// nulls/removal), and the original slot-number version (blocks with a
+// `slot` field, no order or slots array at all).
+function normalizeState(parsed){
+  if(parsed.slots && parsed.nextNum){
+    const blocks = {};
+    ['A','B'].forEach(day=>{
+      (parsed.slots[day]||[]).forEach(id=>{
+        if(id) blocks[id] = Object.assign(blankBlock(day, 1), parsed.blocks[id] || {});
+      });
+    });
+    return {
+      blocks,
+      duties: Array.isArray(parsed.duties) ? parsed.duties : DEFAULT_DUTIES.map(d=>({text:d.text,apply:{...d.apply}})),
+      jobTitles: Array.isArray(parsed.jobTitles) && parsed.jobTitles.length===5
+        ? (JSON.stringify(parsed.jobTitles) === JSON.stringify(OLD_DEFAULT_JOB_TITLES) ? [...DEFAULT_JOB_TITLES] : parsed.jobTitles)
+        : [...DEFAULT_JOB_TITLES],
+      slots: {
+        A: padTo4(parsed.slots.A || ['A1','A2','A3',null]),
+        B: padTo4(parsed.slots.B || ['B1','B2','B3',null])
+      },
+      nextNum: { A: parsed.nextNum.A || 4, B: parsed.nextNum.B || 4 }
+    };
+  }
+
+  if(parsed.order && parsed.nextNum){
+    const base = freshState();
+    ['A','B'].forEach(day=>{
+      const ids = (parsed.order[day]||[]).slice(0,4);
+      base.slots[day] = padTo4(ids);
+      ids.forEach(id=>{ base.blocks[id] = Object.assign(blankBlock(day,1), parsed.blocks[id]||{}); });
+    });
+    if(Array.isArray(parsed.duties)) base.duties = parsed.duties;
+    base.nextNum = { A: parsed.nextNum.A||4, B: parsed.nextNum.B||4 };
+    return base;
+  }
+
+  // Original shape: blocks keyed A1..B4 with a per-block `slot` number.
+  const base = freshState();
+  if(Array.isArray(parsed.duties)) base.duties = parsed.duties;
+  if(parsed.blocks){
+    const byDay = {A:[], B:[]};
+    Object.keys(parsed.blocks).forEach(id=>{
+      const b = parsed.blocks[id];
+      if(b && (b.day==='A' || b.day==='B')) byDay[b.day].push(id);
+    });
+    ['A','B'].forEach(day=>{
+      if(byDay[day].length===0) return;
+      const sorted = byDay[day].slice().sort((a,b)=>(parsed.blocks[a].slot||99)-(parsed.blocks[b].slot||99));
+      base.slots[day] = padTo4(sorted);
+      sorted.forEach(id=>{
+        const merged = Object.assign(blankBlock(day,1), parsed.blocks[id]);
+        delete merged.slot;
+        base.blocks[id] = merged;
+      });
+      let maxNum = 0;
+      sorted.forEach(id=>{ const m = id.match(/(\d+)$/); if(m) maxNum = Math.max(maxNum, parseInt(m[1],10)); });
+      base.nextNum[day] = Math.max(maxNum+1, sorted.length+1);
+    });
+  }
+  return base;
+}
+
+function padTo4(arr){
+  const out = arr.slice(0,4);
+  while(out.length < 4) out.push(null);
+  return out;
+}
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return freshState();
+    const parsed = JSON.parse(raw);
+    if(!parsed.blocks) return freshState();
+    return normalizeState(parsed);
+  }catch(e){ return freshState(); }
+}
+
+
+
+function saveState(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }catch(e){
+    showToast('This browser would not save your changes. Use Download backup to keep a copy.');
+  }
+}
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(()=>t.classList.remove('show'), 3200);
+}
+
+// --- ACTIVE KITCHEN / SPLIT HELPERS ---
+function isSplit(v){ return String(v||'').trim().toUpperCase() === 'SPLIT'; }
+
+function activeKitchenIdxs(block){
+  const idxs = [];
+  block.kitchens.forEach((k,i)=>{
+    const hasReal = k.students.some(s => s && !isSplit(s));
+    if(hasReal) idxs.push(i);
+  });
+  return idxs;
+}
+
+// Rotation
+function advanceBlock(blockId){
+  const block = state.blocks[blockId];
+  const active = activeKitchenIdxs(block);
+
+  active.forEach(ki=>{
+    const k = block.kitchens[ki];
+    const nonSplitVals = k.students.filter(s=>!isSplit(s));
+    if(nonSplitVals.length > 1){
+      const roster = nonSplitVals.slice();
+      const moved = roster.pop();
+      roster.unshift(moved);
+      let rIdx = 0;
+      k.students = k.students.map(cell => {
+        if(isSplit(cell)) return cell;
+        const val = roster[rIdx] || '';
+        rIdx++;
+        return val;
+      });
+    }
+  });
+
+  refreshDuties(blockId, true);
+  saveState();
+}
+
+function saveBlockOriginal(blockId){
+  const block = state.blocks[blockId];
+  block.kitchens.forEach(k=>{ k.original = k.students.slice(); });
+  block.dutyIndex = 0;
+  block.centerSink = 0;
+  refreshDuties(blockId, false);
+  saveState();
+  showToast(`${blockId}: current layout saved as the new original.`);
+}
+
+function restoreBlockOriginal(blockId){
+  const block = state.blocks[blockId];
+  block.kitchens.forEach(k=>{
+    const cleanOrig = k.original.filter(s=>!isSplit(s));
+    let rIdx = 0;
+    k.students = k.students.map(cell=>{
+      if(isSplit(cell)) return cell;
+      const val = rIdx < cleanOrig.length ? cleanOrig[rIdx] : '';
+      rIdx++;
+      return val;
+    });
+  });
+  block.dutyIndex = 0;
+  block.centerSink = 0;
+  refreshDuties(blockId, false);
+  saveState();
+  render();
+  showToast(`${blockId}: restored to saved original.`);
+}
+
+function rotateAll(){
+  Object.keys(state.blocks).forEach(id=>advanceBlock(id));
+  render();
+  showToast('All blocks rotated.');
+}
+
+// Duties
+function dutiesForBlock(blockId){
+  return state.duties.filter(d => d.apply[blockId]).map(d=>d.text);
+}
+
+function refreshDuties(blockId, increment){
+  const block = state.blocks[blockId];
+  const active = activeKitchenIdxs(block);
+  const dutyTextByKitchen = {};
+  const centerSinkByKitchen = {};
+
+  if(active.length > 0){
+    const pool = dutiesForBlock(blockId);
+    let rotated = [];
+    if(pool.length > 0){
+      if(increment) block.dutyIndex = (block.dutyIndex + 1) % pool.length;
+      rotated = pool.slice();
+      while(rotated.length < active.length) rotated.push(...pool);
+      for(let i=0;i<block.dutyIndex;i++) rotated.push(rotated.shift());
+    }
+
+    if(increment) block.centerSink = block.centerSink === 0 ? 1 : 0;
+    const wantOdd = block.centerSink === 0;
+    const centerSinkSet = new Set(active.filter(idx => (((idx+1)%2===1) === wantOdd)));
+
+    active.forEach((ki,i)=>{
+      dutyTextByKitchen[ki] = rotated.length>0 ? rotated[i % rotated.length] : '';
+      centerSinkByKitchen[ki] = centerSinkSet.has(ki);
+    });
+  }
+  block._dutyDisplay = dutyTextByKitchen;
+  block._centerSinkDisplay = centerSinkByKitchen;
+}
+
+// Import
+let importTargetBlock = null;
+function openImportModal(blockId){
+  importTargetBlock = blockId;
+  document.getElementById('importModalTitle').textContent = `Import roster into ${blockId}`;
+  document.getElementById('importText').value = '';
+  document.getElementById('attendanceFile').value = '';
+  document.getElementById('importModalBg').classList.add('show');
+}
+function closeImportModal(){
+  document.getElementById('importModalBg').classList.remove('show');
+}
+// Picks how many kitchens to use so students split as evenly as possible
+// with an average of 4 per kitchen. Kitchens of 3 absorb a remainder in
+// preference to kitchens of 5 — 5s only happen when there's no way to avoid
+// it (e.g. a class size that isn't a clean multiple of 3 or 4).
+function computeGroupCount(n){
+  if(n <= 0) return 0;
+  let k = Math.round(n / TARGET_KITCHEN_SIZE);
+  if(k < 1) k = 1;
+  const minForCap5 = Math.ceil(n / 5);      // enough kitchens that none exceeds 5
+  const maxForFloor3 = Math.max(1, Math.floor(n / 3)); // few enough that none drops below 3
+  if(k < minForCap5) k = minForCap5;
+  if(k > maxForFloor3) k = maxForFloor3;
+  return Math.min(NUM_KITCHENS, Math.max(1, k));
+}
+
+function shuffle(arr){
+  for(let i=arr.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]] = [arr[j],arr[i]];
+  }
+}
+// Minimal correct CSV parser: handles quoted fields, commas/newlines inside
+// quotes, and "" escaped quotes. Needed because attendance exports quote
+// fields like "Archer, Kelly Noel" (comma inside) and messy HTML-log cells.
+function parseCSV(text){
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for(let i=0;i<text.length;i++){
+    const c = text[i];
+    if(inQuotes){
+      if(c === '"'){
+        if(text[i+1] === '"'){ field += '"'; i++; }
+        else inQuotes = false;
+      } else field += c;
+    } else {
+      if(c === '"') inQuotes = true;
+      else if(c === ',') { row.push(field); field=''; }
+      else if(c === '\r') { /* skip */ }
+      else if(c === '\n') { row.push(field); rows.push(row); row=[]; field=''; }
+      else field += c;
+    }
+  }
+  if(field.length > 0 || row.length > 0){ row.push(field); rows.push(row); }
+  return rows;
+}
+
+function handleAttendanceFile(input){
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try{
+      const text = String(e.target.result).replace(/^\uFEFF/, '');
+      const rows = parseCSV(text).filter(r => r.length > 1 || (r[0] && r[0].trim()));
+      if(rows.length < 2) throw new Error('empty');
+
+      // Some exports have a grouping/title row above the real column
+      // headers (e.g. "Previous Days" / "Student Information"), so scan
+      // the first several rows for the one that actually contains a
+      // "Student" column rather than assuming it's row 0.
+      let headerRowIdx = -1, idx = -1;
+      for(let r=0; r<Math.min(5, rows.length); r++){
+        const header = rows[r].map(h => h.trim().toLowerCase());
+        const found = header.indexOf('student');
+        if(found !== -1){ headerRowIdx = r; idx = found; break; }
+      }
+      if(idx === -1){
+        showToast('Could not find a "Student" column in that file.');
+        return;
+      }
+
+      const names = [];
+      for(let r=headerRowIdx+1; r<rows.length; r++){
+        const raw = rows[r][idx];
+        if(raw && raw.trim()) names.push(raw.trim());
+      }
+      if(names.length === 0){
+        showToast('No student names found in that file.');
+        return;
+      }
+
+      document.getElementById('importText').value = names.join('\n');
+      showToast(`Loaded ${names.length} students. Check the list, then choose Import.`);
+    }catch(err){
+      showToast('That file could not be read as CSV.');
+    }
+  };
+  reader.readAsText(file);
+  input.value = '';
+}
+
+// Converts "Archer, Kelly Noel" -> "Kelly A." (first name + last initial).
+// Lines with no comma are assumed to already be a plain first name and pass through as-is.
+function parseNameEntry(raw){
+  let s = raw.trim().replace(/^["']+|["']+$/g, '');
+  if(!s) return '';
+  if(s.includes(',')){
+    const [lastPart, firstPart] = s.split(',');
+    const last = lastPart.trim();
+    const first = (firstPart || '').trim().split(/\s+/)[0] || '';
+    if(!first || !last) return first || last;
+    return `${first} ${last[0].toUpperCase()}.`;
+  }
+  return s;
+}
+
+function confirmImport(){
+  const raw = document.getElementById('importText').value;
+  let names = raw.split(/\r?\n/).map(parseNameEntry).filter(Boolean);
+  if(names.length === 0){ showToast('No names entered.'); return; }
+  shuffle(names);
+
+  const numGroups = computeGroupCount(names.length);
+  const groups = Array.from({length:numGroups}, ()=>[]);
+  names.forEach((n,i)=> groups[i % numGroups].push(n));
+
+  const block = state.blocks[importTargetBlock];
+  block.kitchens = Array.from({length:NUM_KITCHENS}, ()=>emptyKitchen());
+  groups.forEach((g, ci)=>{
+    if(g.length > MAX_KITCHEN){
+      showToast(`Kitchen ${ci+1} holds only ${MAX_KITCHEN} students. The rest were left out.`);
+      g = g.slice(0, MAX_KITCHEN);
+    }
+    block.kitchens[ci].students = g.slice();
+    block.kitchens[ci].original = g.slice();
+  });
+  block.dutyIndex = 0;
+  block.centerSink = 0;
+  refreshDuties(importTargetBlock, false);
+  saveState();
+  closeImportModal();
+  render();
+  showToast(`Imported ${names.length} students into ${numGroups} kitchens for ${importTargetBlock}.`);
+}
+
+// Duty list management
+function loadDefaultDuties(){
+  if(state.duties.length > 0){
+    const ok = confirm('This replaces your current duty list with the standard 10-duty list. Continue?');
+    if(!ok) return;
+  }
+  state.duties = DEFAULT_DUTIES.map(d => ({ text:d.text, apply:{...d.apply} }));
+  saveState();
+  renderDutyTable();
+  showToast('Standard duty list loaded.');
+}
+
+function addDuty(){
+  state.duties.push({ text:'New duty', apply: Object.fromEntries(allBlockIds().map(id=>[id,false])) });
+  saveState();
+  renderDutyTable();
+}
+function removeDuty(idx){
+  state.duties.splice(idx,1);
+  saveState();
+  renderDutyTable();
+}
+function updateDutyText(idx, val){
+  state.duties[idx].text = val;
+  saveState();
+}
+function toggleDutyApply(idx, blockId, checked){
+  state.duties[idx].apply[blockId] = checked;
+  saveState();
+}
+
+function renderDutyTable(){
+  const tbl = document.getElementById('dutyTable');
+  const ids = allBlockIds();
+  const labelFor = id => {
+    const day = state.blocks[id].day;
+    return day + (state.slots[day].indexOf(id) + 1);
+  };
+  let html = '<tr><th>Duty</th>' + ids.map(id=>`<th>${labelFor(id)}</th>`).join('') + '<th></th></tr>';
+  state.duties.forEach((d, idx)=>{
+    html += `<tr>
+      <td><input type="text" value="${escapeAttr(d.text)}" onchange="updateDutyText(${idx}, this.value)"></td>
+      ${ids.map(id=>`<td><input type="checkbox" ${d.apply[id]?'checked':''} onchange="toggleDutyApply(${idx}, '${id}', this.checked)"></td>`).join('')}
+      <td><button class="btn-danger" onclick="removeDuty(${idx})" aria-label="Remove duty">${ICON_TRASH_SOLO}</button></td>
+    </tr>`;
+  });
+  tbl.innerHTML = html || '<tr><td>No duties yet. Add one below.</td></tr>';
+}
+
+// Render
+function escapeAttr(s){ return String(s).replace(/"/g,'&quot;'); }
+
+function switchTab(which){
+  ['A','B','duties','jobs'].forEach(t=>{
+    document.getElementById('panel-'+t).classList.toggle('active', t===which);
+    document.getElementById('tab-'+t).classList.toggle('active', t===which);
+  });
+}
+
+function renderDayPanel(day){
+  const container = document.getElementById('panel-'+day);
+  const slots = state.slots[day];
+  let html = '';
+
+  slots.forEach((id, posIdx)=>{
+    if(!id){
+      html += `<div class="block-card empty-slot-card">
+        <div class="empty-slot-label">${day}${posIdx+1} prep period</div>
+        <button class="btn-secondary" onclick="startNewClass('${day}', ${posIdx})">+ Start New Class Here</button>
+      </div>`;
+      return;
+    }
+
+    const block = state.blocks[id];
+    refreshDuties(id, false); // ensure _dutyDisplay populated for render without mutating rotation
+    const headClass = block.course===2 ? 'c2' : '';
+    html += `<div class="block-card">
+      <div class="block-head ${headClass}">
+        <select class="hdr-field id-badge-select" onchange="updatePosition('${id}', this.value)">
+          <option value="prep">Prep (no class)</option>
+          ${[0,1,2,3].map(n=>`<option value="${n+1}" ${posIdx===n?'selected':''}>${day}${n+1}</option>`).join('')}
+        </select>
+        <select class="hdr-field" onchange="updateCourse('${id}', this.value)">
+          <option value="1" ${block.course===1?'selected':''}>Culinary 1</option>
+          <option value="2" ${block.course===2?'selected':''}>Culinary 2</option>
+        </select>
+        <div class="block-actions">
+          <button class="btn-primary" onclick="advanceBlock('${id}'); render();">Advance</button>
+          <button class="btn-outline" style="border-color:#999" onclick="openFullscreen('${id}')">${ICON_EXPAND}Full screen</button>
+          <button class="btn-outline menu-trigger" style="border-color:#999" onclick="openMenu(event, this, blockMenuHtml('${id}'))" aria-label="More actions">${ICON_KEBAB}</button>
+        </div>
+      </div>
+      <div class="kitchen-grid">`;
+
+    const active = activeKitchenIdxs(block);
+
+    // Header row: label column, then each kitchen's header.
+    html += `<div class="khead">&nbsp;</div>`;
+    for(let ki=0; ki<NUM_KITCHENS; ki++){
+      html += `<div class="khead ${!active.includes(ki)?'empty':''}">K${ki+1}</div>`;
+    }
+
+    // One row per seat position, each spanning the label column + all 8 kitchens.
+    for(let r=0; r<MAX_KITCHEN; r++){
+      html += `<div class="seat-label">${escapeHtml(state.jobTitles[r])}</div>`;
+      for(let ki=0; ki<NUM_KITCHENS; ki++){
+        const isEmpty = !active.includes(ki);
+        const val = block.kitchens[ki].students[r] || '';
+        const splitCls = isSplit(val) ? 'split-cell' : '';
+        html += `<input class="seat ${splitCls} ${isEmpty?'empty':''}" value="${escapeAttr(val)}"
+          onchange="updateSeat('${id}',${ki},${r},this.value)">`;
+      }
+    }
+
+    // Duty row — tallest cell in this row (e.g. a long wrapped duty) now
+    // sets the height for the WHOLE row, so every kitchen's row stays level.
+    html += `<div class="duty label-row">Extra duty</div>`;
+    for(let ki=0; ki<NUM_KITCHENS; ki++){
+      const isEmpty = !active.includes(ki);
+      const dutyText = (block._dutyDisplay && block._dutyDisplay[ki]) || '';
+      html += `<div class="duty ${isEmpty?'empty':''}">${dutyText ? escapeHtml(dutyText) : ''}</div>`;
+    }
+
+    // Center Sink row — same fix applies here, which is what was drifting.
+    html += `<div class="centersink label-row">Center sink</div>`;
+    for(let ki=0; ki<NUM_KITCHENS; ki++){
+      const isEmpty = !active.includes(ki);
+      const hasSink = !!(block._centerSinkDisplay && block._centerSinkDisplay[ki]);
+      html += `<div class="centersink ${hasSink?'active':''} ${isEmpty?'empty':''}">${hasSink ? ICON_DROPLET+' Center sink' : ''}</div>`;
+    }
+
+    html += `</div></div>`;
+  });
+  container.innerHTML = html;
+}
+
+function escapeHtml(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function updateHeaderField(blockId, field, val){
+  state.blocks[blockId][field] = val;
+  saveState();
+}
+
+function updatePosition(blockId, val){
+  if(val === 'prep'){ removeClass(blockId); return; }
+
+  const newPos = parseInt(val, 10) - 1; // 0-indexed
+  const block = state.blocks[blockId];
+  const day = block.day;
+  const slots = state.slots[day];
+  const oldPos = slots.indexOf(blockId);
+  if(oldPos === -1 || newPos === oldPos) return;
+
+  // Moving into an empty slot just relocates it; moving onto an occupied
+  // slot swaps the two classes' positions. Either way nothing is lost.
+  const displacedId = slots[newPos];
+  slots[oldPos] = displacedId; // null if the target was empty
+  slots[newPos] = blockId;
+
+  saveState();
+  render();
+  showToast(displacedId ? `Swapped ${day}${oldPos+1} and ${day}${newPos+1}.` : `Moved to ${day}${newPos+1}.`);
+}
+
+function startNewClass(day, posIdx){
+  const num = state.nextNum[day];
+  const id = day + num;
+  state.blocks[id] = blankBlock(day, 1);
+  state.slots[day][posIdx] = id;
+  state.nextNum[day] = num + 1;
+  saveState();
+  render();
+  showToast(`Started a class at ${day}${posIdx+1}. Set the class type, then import a roster.`);
+}
+
+function removeClass(blockId){
+  const block = state.blocks[blockId];
+  const day = block.day;
+  const posIdx = state.slots[day].indexOf(blockId);
+  if(posIdx === -1) return;
+
+  const ok = confirm(`Remove the class at ${day}${posIdx+1}? This deletes its roster and duty history and makes ${day}${posIdx+1} a prep period. This can't be undone (unless you have a backup).`);
+  if(!ok) return;
+
+  state.slots[day][posIdx] = null;
+  delete state.blocks[blockId];
+  state.duties.forEach(d=>{ delete d.apply[blockId]; });
+  saveState();
+  render();
+  showToast(`${day}${posIdx+1} is now a prep period.`);
+}
+
+function updateCourse(blockId, val){
+  const block = state.blocks[blockId];
+  block.course = parseInt(val, 10);
+  block.className = block.course === 2 ? 'Culinary 2' : 'Culinary 1';
+  saveState();
+  render();
+}
+
+function updateSeat(blockId, kIdx, rIdx, val){
+  const k = state.blocks[blockId].kitchens[kIdx];
+  while(k.students.length <= rIdx) k.students.push('');
+  k.students[rIdx] = val;
+  saveState();
+  render(); // re-render so empty/active styling and duty row stay in sync
+}
+
+function render(){
+  renderDayPanel('A');
+  renderDayPanel('B');
+  renderDutyTable();
+  renderJobTitleTable();
+  if(fullscreenBlockId) renderFullscreen();
+}
+
+function updateJobTitle(idx, val){
+  state.jobTitles[idx] = val || `Seat ${idx+1}`;
+  saveState();
+  render();
+}
+
+function renderJobTitleTable(){
+  const tbl = document.getElementById('jobTitleTable');
+  let html = '<tr><th>Seat Position</th><th>Job Title</th></tr>';
+  state.jobTitles.forEach((title, idx)=>{
+    html += `<tr>
+      <td>Seat ${idx+1}</td>
+      <td><input type="text" value="${escapeAttr(title)}" onchange="updateJobTitle(${idx}, this.value)"></td>
+    </tr>`;
+  });
+  tbl.innerHTML = html;
+}
+
+// Backup and restore (manual, local file)
+function downloadBackup(){
+  const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const stamp = new Date().toISOString().slice(0,10);
+  a.href = url;
+  a.download = `kitchen-rotation-backup-${stamp}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Backup file downloaded.');
+}
+function loadBackupFile(input){
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e=>{
+    try{
+      const parsed = JSON.parse(e.target.result);
+      if(!parsed.blocks) throw new Error('bad file');
+      state = parsed;
+      saveState();
+      render();
+      showToast('Backup loaded.');
+    }catch(err){
+      showToast('That file could not be read. It needs to be a backup downloaded from this tool.');
+    }
+  };
+  reader.readAsText(file);
+  input.value = '';
+}
+
+// Dropdown menu
+function openMenu(evt, triggerEl, itemsHtml){
+  evt.stopPropagation();
+  const menu = document.getElementById('genericMenu');
+  const wasOpenForThisTrigger = menu.classList.contains('show') && menu._trigger === triggerEl;
+  closeMenu();
+  if(wasOpenForThisTrigger) return; // clicking the same trigger again just closes it
+
+  menu.innerHTML = itemsHtml;
+  menu._trigger = triggerEl;
+  const rect = triggerEl.getBoundingClientRect();
+  menu.style.top = (rect.bottom + 6) + 'px';
+  menu.style.left = 'auto';
+  menu.style.right = Math.max(8, window.innerWidth - rect.right) + 'px';
+  menu.classList.add('show');
+}
+function closeMenu(){
+  const menu = document.getElementById('genericMenu');
+  menu.classList.remove('show');
+  menu._trigger = null;
+}
+document.addEventListener('click', closeMenu);
+
+function blockMenuHtml(id){
+  return `
+    <button onclick="saveBlockOriginal('${id}'); render();">${ICON_SAVE}Save as original</button>
+    <button onclick="restoreBlockOriginal('${id}');">${ICON_RESTORE}Restore to original</button>
+    <button onclick="openImportModal('${id}');">${ICON_IMPORT}Import roster</button>
+    <button onclick="removeClass('${id}');" style="color:var(--bad);">${ICON_TRASH}Remove this class</button>
+  `;
+}
+function backupMenuHtml(){
+  return `
+    <button onclick="downloadBackup();">${ICON_DOWNLOAD}Download backup</button>
+    <button onclick="document.getElementById('restoreFile').click();">${ICON_UPLOAD}Load backup</button>
+  `;
+}
+
+// Bell schedule and fullscreen
+// Position within a day (1st, 2nd, 3rd, 4th block of that day) maps
+// directly to these times, regardless of A or B day — both day types use
+// the same four daily time blocks (e.g. "1A/5B" share one time slot).
+// Typos in the source schedule (4th block listed as "am") corrected to PM.
+const BELL_SCHEDULES = {
+  monThu: { label:'Monday–Thursday', blocks: [
+    {start:'07:30', end:'08:55'},
+    {start:'09:01', end:'10:33'},
+    {start:'11:14', end:'12:39'},
+    {start:'12:45', end:'14:10'}
+  ]},
+  friday: { label:'Friday (Late Start)', blocks: [
+    {start:'08:30', end:'09:42'},
+    {start:'09:48', end:'11:00'},
+    {start:'11:40', end:'12:52'},
+    {start:'12:58', end:'14:10'}
+  ]}
+};
+const CLEANUP_LEAD_MIN = 10;
+
+const ICON_CLOSE = '<svg class="fs-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>';
+const ICON_DROPLET = '<svg class="fs-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5c-.3 0-.6.14-.78.38C9.7 5.2 5.25 11.6 5.25 15.5a6.75 6.75 0 0 0 13.5 0c0-3.9-4.45-10.3-5.97-12.62a.95.95 0 0 0-.78-.38z"/></svg>';
+const I = (p,extra='') => `<svg class="icon ${extra}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+const ICON_CHEVRON  = I('<polyline points="6 9 12 15 18 9"/>','icon-solo');
+const ICON_KEBAB    = I('<circle cx="12" cy="5" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.6" fill="currentColor" stroke="none"/>','icon-solo');
+const ICON_EXPAND   = I('<polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>');
+const ICON_SAVE     = I('<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>');
+const ICON_RESTORE  = I('<polyline points="1 4 1 10 7 10"/><path d="M3.5 15a9 9 0 1 0 2.1-9.4L1 10"/>');
+const ICON_IMPORT   = I('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>');
+const ICON_TRASH    = I('<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>');
+const ICON_DOWNLOAD = I('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>');
+const ICON_UPLOAD   = I('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>');
+const ICON_TRASH_SOLO = I('<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>','icon-solo');
+const ICON_MOON = '<svg class="fs-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M20.5 14.3A8.5 8.5 0 0 1 9.7 3.5a8.5 8.5 0 1 0 10.8 10.8z"/></svg>';
+const ICON_SUN = '<svg class="fs-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2" fill="currentColor" stroke="none"/><line x1="12" y1="1.8" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22.2"/><line x1="1.8" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22.2" y2="12"/><line x1="4.6" y1="4.6" x2="6.2" y2="6.2"/><line x1="17.8" y1="17.8" x2="19.4" y2="19.4"/><line x1="4.6" y1="19.4" x2="6.2" y2="17.8"/><line x1="17.8" y1="6.2" x2="19.4" y2="4.6"/></svg>';
+
+function defaultScheduleKey(){
+  return new Date().getDay() === 5 ? 'friday' : 'monThu';
+}
+
+let fullscreenScheduleKey = defaultScheduleKey();
+let fullscreenBlockId = null;
+let fullscreenTimer = null;
+
+function timeStrToDateToday(hhmm){
+  const [h,m] = hhmm.split(':').map(Number);
+  const d = new Date();
+  d.setHours(h, m, 0, 0);
+  return d;
+}
+
+function formatCountdown(ms){
+  if(ms < 0) ms = 0;
+  const totalSec = Math.floor(ms/1000);
+  const m = Math.floor(totalSec/60);
+  const s = totalSec % 60;
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
+
+function openFullscreen(blockId){
+  fullscreenBlockId = blockId;
+  // Must become visible BEFORE rendering: the font-fitting pass measures
+  // element widths/heights, and everything measures 0 while display:none,
+  // which makes every size appear to "fit" and pins text at maximum size.
+  document.getElementById('fullscreenOverlay').classList.add('show');
+  renderFullscreen();
+  if(fullscreenTimer) clearInterval(fullscreenTimer);
+  fullscreenTimer = setInterval(updateFullscreenTimers, 1000);
+}
+
+function closeFullscreen(){
+  document.getElementById('fullscreenOverlay').classList.remove('show');
+  if(fullscreenTimer){ clearInterval(fullscreenTimer); fullscreenTimer = null; }
+  fullscreenBlockId = null;
+}
+
+function changeFullscreenSchedule(val){
+  fullscreenScheduleKey = val;
+  updateFullscreenTimers();
+}
+
+function renderFullscreen(){
+  const block = state.blocks[fullscreenBlockId];
+  if(!block) return;
+  refreshDuties(fullscreenBlockId, false);
+
+  const day = block.day;
+  const posIdx = state.slots[day].indexOf(fullscreenBlockId);
+  const label = `${day}${posIdx+1}`;
+  const active = activeKitchenIdxs(block);
+
+  // Shared-label grid: job titles appear ONCE down the left column instead
+  // of repeated inside every kitchen — same pattern as the main page. This
+  // gives each kitchen's name column the full row width to itself, since it
+  // no longer has to share space with a title string, so names can be sized
+  // dramatically larger. Cells are emitted row-major so CSS Grid auto-aligns
+  // every row's height across all kitchens (duty text wrapping in one
+  // kitchen no longer drags that row out of line with the others).
+  let gridHtml = '';
+  if(active.length > 0){
+    // minmax(0,1fr) caps each kitchen column at an EQUAL share of the width
+    // so long names can't push a column wider than its fraction (which was
+    // causing the grid to run off-screen). The label column is a fixed width.
+    // Row template: header (auto), 5 name rows (1fr each — they share the
+    // leftover height equally and large), duty row (0.9fr), sink row (auto).
+    // Only render job rows that at least one active kitchen actually fills.
+    // With e.g. 27 students in 7 kitchens nobody has a 5th seat, so the
+    // Dishwasher row would otherwise sit empty and eat a full row of height
+    // that the real rows could be using.
+    let usedRows = 0;
+    for(let r=0; r<MAX_KITCHEN; r++){
+      const anyone = active.some(ki=>{
+        const n = block.kitchens[ki].students[r];
+        return n && !isSplit(n);
+      });
+      if(anyone) usedRows = r + 1;
+    }
+    if(usedRows === 0) usedRows = 1;
+
+    const cols = `minmax(0,240px) repeat(${active.length}, minmax(0,1fr))`;
+    // All rows are fr fractions (min 0) so they ALWAYS sum to exactly the
+    // grid's height and can never be pushed past it by their content:
+    // header 0.7, each used name row 1, duty 1.1 (roomy for wrapping duty
+    // text), sink 0.7.
+    const rows = `minmax(0,0.7fr) repeat(${usedRows}, minmax(0,1fr)) minmax(0,1.1fr) minmax(0,0.7fr)`;
+    gridHtml += `<div class="fs-grid" style="grid-template-columns:${cols}; grid-template-rows:${rows}">`;
+
+    gridHtml += `<div class="fs-ghead">&nbsp;</div>`;
+    active.forEach(ki=>{ gridHtml += `<div class="fs-ghead">K${ki+1}</div>`; });
+
+    for(let r=0; r<usedRows; r++){
+      gridHtml += `<div class="fs-glabel">${escapeHtml(state.jobTitles[r])}</div>`;
+      active.forEach(ki=>{
+        const name = block.kitchens[ki].students[r];
+        const display = (name && !isSplit(name)) ? escapeHtml(name) : '';
+        gridHtml += `<div class="fs-gname">${display}</div>`;
+      });
+    }
+
+    gridHtml += `<div class="fs-glabel fs-glabel-duty">Extra duty</div>`;
+    active.forEach(ki=>{
+      const dutyText = (block._dutyDisplay && block._dutyDisplay[ki]) || '';
+      gridHtml += `<div class="fs-gduty">${dutyText ? escapeHtml(dutyText) : 'None'}</div>`;
+    });
+
+    gridHtml += `<div class="fs-glabel">Center sink</div>`;
+    active.forEach(ki=>{
+      const hasSink = !!(block._centerSinkDisplay && block._centerSinkDisplay[ki]);
+      gridHtml += `<div class="fs-gsink ${hasSink?'active':''}">${hasSink ? ICON_DROPLET+' Center sink' : ''}</div>`;
+    });
+
+    gridHtml += `</div>`;
+  } else {
+    gridHtml = '<div class="fs-empty">No kitchens in use for this block.</div>';
+  }
+
+  document.getElementById('fsContent').innerHTML = `
+    <div class="fs-header">
+      <div class="fs-label"><span class="fs-label-id">${label}</span><span class="fs-label-class">${escapeHtml(block.className)}</span></div>
+      <div class="fs-schedule-picker">
+        <select onchange="changeFullscreenSchedule(this.value)">
+          <option value="monThu" ${fullscreenScheduleKey==='monThu'?'selected':''}>Monday–Thursday</option>
+          <option value="friday" ${fullscreenScheduleKey==='friday'?'selected':''}>Friday (Late Start)</option>
+        </select>
+      </div>
+      <button class="btn-outline" onclick="closeFullscreen()">${ICON_CLOSE} Close</button>
+    </div>
+    <div class="fs-timers" id="fsTimers"></div>
+    ${gridHtml}
+  `;
+  updateFullscreenTimers();
+  fitFullscreen();
+}
+
+// Fullscreen fit-to-screen
+// Three passes, run after every render:
+//  1. fitJobRows() — since the job title now appears only once per row (in
+//     the shared label column) instead of inside every kitchen's cell, each
+//     of the three text roles — names, labels, kitchen headers — gets its
+//     own single-line max-fit: one shared font size per role, as LARGE as
+//     possible while every cell of that role still fits its own column
+//     width on one line. Names get the most room since they no longer
+//     compete with title text for space.
+//
+// The grid box is locked to the screen first (full width via width:100vw,
+// full leftover height via flex + fixed row fractions), so every cell has a
+// real, final width AND height BEFORE any font is sized. There is no page
+// scaling anymore — the earlier scale transform is exactly what was shrinking
+// everything toward one corner. We just grow each text role's font as large
+// as fits its cells in BOTH dimensions.
+// Returns true if EVERY element fits inside its cell (no overflow) in both
+// width and height at whatever font size is currently applied. A 1px
+// tolerance absorbs sub-pixel rounding.
+function allFit(elements){
+  for(const el of elements){
+    // A zero-sized cell means layout isn't ready (e.g. still display:none).
+    // Treat that as "doesn't fit" so the search can't conclude that every
+    // size fits and pin text at the maximum.
+    if(el.clientWidth <= 0 || el.clientHeight <= 0) return false;
+    if(el.scrollWidth > el.clientWidth + 1) return false;
+    if(el.scrollHeight > el.clientHeight + 1) return false;
+  }
+  return true;
+}
+
+// Binary-searches for the LARGEST integer font size (between min and max)
+// at which every element still fits its cell, then applies that one shared
+// size to all of them — so names are uniform and none overflow. This
+// replaces the old ratio estimate, which mis-measured at the trial size
+// (integer rounding made fitting text report a ratio of exactly 1, so it
+// never grew past the base size and long names overflowed).
+function maxFitFontSize(elements, maxSizePx, minSizePx){
+  if(elements.length === 0) return maxSizePx;
+
+  let lo = minSizePx, hi = maxSizePx, best = minSizePx;
+  while(lo <= hi){
+    const mid = Math.floor((lo + hi) / 2);
+    elements.forEach(el=>{ el.style.fontSize = mid + 'px'; });
+    if(allFit(elements)){
+      best = mid;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  elements.forEach(el=>{ el.style.fontSize = best + 'px'; });
+  return best;
+}
+
+function fitJobRows(){
+  const nameEls = Array.from(document.querySelectorAll('.fs-gname'));
+  const labelEls = Array.from(document.querySelectorAll('.fs-glabel'));
+  const headEls = Array.from(document.querySelectorAll('.fs-ghead'));
+  const dutyEls = Array.from(document.querySelectorAll('.fs-gduty'));
+  const sinkEls = Array.from(document.querySelectorAll('.fs-gsink'));
+
+  // Each role is measured against its own cells (now fixed in both
+  // dimensions) and grown to the largest size that fits every one of them.
+  maxFitFontSize(nameEls, 220, 14);
+  maxFitFontSize(labelEls, 90, 12);
+  maxFitFontSize(headEls, 110, 12);
+  maxFitFontSize(dutyEls, 40, 10);
+  maxFitFontSize(sinkEls, 36, 10);
+}
+
+function fitFullscreen(){
+  // Two passes: the first sizes fonts; applying them can nudge a wrapping
+  // cell's height, so a second pass re-measures against the settled layout.
+  fitJobRows();
+  requestAnimationFrame(fitJobRows);
+}
+
+window.addEventListener('resize', ()=>{
+  if(fullscreenBlockId) fitFullscreen();
+});
+
+function updateFullscreenTimers(){
+  const timersEl = document.getElementById('fsTimers');
+  if(!timersEl || !fullscreenBlockId) return;
+  const block = state.blocks[fullscreenBlockId];
+  if(!block) return;
+  const day = block.day;
+  const posIdx = state.slots[day].indexOf(fullscreenBlockId);
+  const schedule = BELL_SCHEDULES[fullscreenScheduleKey];
+  const blockTimes = schedule.blocks[posIdx];
+
+  if(!blockTimes){
+    timersEl.innerHTML = `<div class="fs-timer-card fs-na">No bell time set for position ${posIdx+1}. This schedule covers the four standard daily blocks.</div>`;
+    return;
+  }
+
+  const now = new Date();
+  const end = timeStrToDateToday(blockTimes.end);
+  const cleanupStart = new Date(end.getTime() - CLEANUP_LEAD_MIN*60000);
+  const msToEnd = end - now;
+  const msToCleanup = cleanupStart - now;
+  const classOver = msToEnd <= 0;
+  const pastCleanup = !classOver && msToCleanup <= 0;
+
+  timersEl.innerHTML = `
+    <div class="fs-timer-card ${pastCleanup?'fs-alert':''}">
+      <div class="fs-timer-label">Time until cleanup bell</div>
+      <div class="fs-timer-value">${classOver ? 'Done' : (pastCleanup ? 'Clean up now' : formatCountdown(msToCleanup))}</div>
+    </div>
+    <div class="fs-timer-card ${classOver?'fs-over':''}">
+      <div class="fs-timer-label">Time left in class</div>
+      <div class="fs-timer-value">${classOver ? 'Class ended' : formatCountdown(msToEnd)}</div>
+    </div>
+  `;
+}
+
+document.addEventListener('keydown', e=>{
+  if(e.key === 'Escape' && fullscreenBlockId) closeFullscreen();
+});
+
+// Theme
+// Kept in its own localStorage key rather than in state, so it's a
+// per-device display preference and isn't carried around by data backups.
+const THEME_KEY = 'kitchenRotationTool_theme';
+
+function loadTheme(){
+  try{
+    return localStorage.getItem(THEME_KEY) === 'dark' ? 'dark' : 'light';
+  }catch(e){ return 'light'; }
+}
+
+function applyTheme(theme){
+  document.documentElement.setAttribute('data-theme', theme);
+  const btn = document.getElementById('themeToggle');
+  if(btn) btn.innerHTML = (theme === 'dark') ? ICON_SUN + ' Light' : ICON_MOON + ' Dark';
+}
+
+function toggleTheme(){
+  const next = (document.documentElement.getAttribute('data-theme') === 'dark') ? 'light' : 'dark';
+  try{ localStorage.setItem(THEME_KEY, next); }catch(e){}
+  applyTheme(next);
+  // Theme swap can shift text metrics slightly; re-fit if fullscreen is open.
+  if(fullscreenBlockId) fitFullscreen();
+}
+
+// Web fonts arrive after first paint, and the fullscreen fitter sizes text by
+// measuring it. A measurement taken against fallback metrics produces the
+// wrong size the moment the real face swaps in, so re-fit once fonts settle.
+// Wrapped in a guard because document.fonts is absent in older engines, and
+// the promise rejects if a font fails to load (offline, or a blocked domain)
+// in which case the fallback stack is already correct and no re-fit is needed.
+if(document.fonts && document.fonts.ready){
+  document.fonts.ready.then(()=>{
+    if(fullscreenBlockId) fitFullscreen();
+  }).catch(()=>{});
+}
+
+// Init
+applyTheme(loadTheme());
+render();
+</script>
+</body>
+</html>
