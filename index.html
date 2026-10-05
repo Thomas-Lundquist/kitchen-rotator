@@ -18,114 +18,125 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=League+Spartan:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap">
 <style>
   /* Kitchen Rotation Tool.
      Read two ways: by the teacher on a laptop, and by a room of
-     students off a wall TV. Neutrals stay cool and quiet so the
-     course accents (orange for Culinary 1, gold for Culinary 2)
-     are the only warm colour and carry the meaning. */
+     students off a wall TV. A modernist primary-colour system —
+     poster red for Culinary 1, cobalt for Culinary 2, mustard yellow
+     for duties, black doing all the structural work — on flat white/
+     near-black fields. Colour carries meaning; shadows and rounding
+     are kept deliberately minimal so the colour blocks read as shapes,
+     not as soft SaaS cards. */
 
   /* Light theme (default) */
   :root{
-    /* type — system stacks only; this file must work with no network */
+    /* type — system stacks only; this file must work with no network.
+       Century Gothic ships with Windows and is a genuine geometric
+       sans, so the no-network fallback still lands close to the brief. */
     --font:"Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI Variable Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    --font-display:"Barlow Semi Condensed", "Bahnschrift", "DIN Alternate", "DIN Condensed", "Avenir Next Condensed", "Segoe UI Variable Display", system-ui, sans-serif;
-    --font-stretch-display:87.5%;
+    --font-display:"League Spartan", "Century Gothic", "Spartan", "Futura", "Poppins", system-ui, sans-serif;
+    --font-stretch-display:100%;
 
-    /* steel neutrals */
-    --canvas:#D9DEE6;
+    /* neutral paper & ink — no warm cast */
+    --canvas:#F0F0EB;
     --surface:#FFFFFF;
-    --surface-alt:#F4F6F8;
-    --surface-sunken:#DDE2E9;
-    --surface-hover:#EEF1F4;
-    --line:#A5AFBF;
-    --line-strong:#788395;
-    --char:#161A20;          /* primary text */
-    --muted:#656D7A;
-    --placeholder:#A8AFBA;
-    --field-border:#C3C9D2;
+    --surface-alt:#F6F6F1;
+    --surface-sunken:#E7E7E0;
+    --surface-hover:#ECECE5;
+    --line:#D7D7CD;
+    --line-strong:#B7B7A9;
+    --char:#131210;          /* primary text — near-true black */
+    --muted:#6D6C60;
+    --placeholder:#A7A698;
+    --field-border:#C9C9BB;
 
-    /* structural dark bands (stay dark in BOTH themes — they are
+    /* structural black bands (stay black in BOTH themes — they are
        structure, not surface: column headers, table headers, toast) */
-    --band:#1B1F26;
+    --band:#131210;
     --band-ink:#FFFFFF;
-    --band-ink-soft:#A9B2BF;
-    --header-bg:#1B1F26;
+    --band-ink-soft:#B7B7A9;
+    --header-bg:#131210;
 
-    /* course accents */
-    --c1:#E0761B; --c1-dark:#B85D12; --c1-tint:#FDF1E5;
-    --c2:#C39A1E; --c2-navy:#16233B; --c2-tint:#FBF4DF;
-    --sink:#0E7490; --sink-deep:#0A5A72;
-    --bad:#C0392B; --good:#3F7A52;
+    /* course accents — Bauhaus primary triad: poster red + cobalt,
+       mustard reserved for duties, kelly green for the sink signal */
+    --c1:#DA2824; --c1-dark:#AE1E1B; --c1-tint:#FBDEDC;
+    --c2:#1D4FA3; --c2-tint:#DBE5F5;
+    --duty-tint:#FCEEC4; --duty-line:#F0B000; --duty-ink:#6B4B00;
+    --sink:#1E8A4C; --sink-deep:#145C32;
+    --bad:#DA2824; --good:#1E8A4C;
 
-    --sink-idle-bg:#F0F2F5; --sink-idle-text:#AEB5BF;
-    --empty-slot-bg:#F4F6F8;
+    --sink-idle-bg:#F6F6F1; --sink-idle-text:#B7B7A9;
+    --empty-slot-bg:#F6F6F1;
 
     /* fullscreen board */
-    --fs-bg:#D9DEE6; --fs-line:#788395;
-    --fs-head-bg:#262C36; --fs-head-text:#FFFFFF;
-    --fs-label-bg:#F4F6F8; --fs-label-text:#0F6E96; --fs-duty-label-text:#8A5A1C;
-    --fs-name-bg:#FFFFFF; --fs-name-text:#13171D;
-    --fs-duty-bg:#FDF4E7; --fs-duty-text:#74490F;
-    --fs-sink-bg:#EDEFF2; --fs-sink-text:#AEB5BF;
-    --fs-card-bg:#FFFFFF; --fs-card-border:#788395;
-    --fs-title-text:#13171D; --fs-timer-label:#656D7A; --fs-timer-value:#13171D;
-    --fs-empty-text:#7D8694; --fs-select-border:#C3C9D2;
-    --fs-alert-bg:#FDEDEA; --fs-alert-text:#A93226;
+    --fs-bg:#F0F0EB; --fs-line:#B7B7A9;
+    --fs-head-bg:#131210; --fs-head-text:#FFFFFF;
+    --fs-label-bg:#F6F6F1; --fs-label-text:#1D4FA3; --fs-duty-label-text:#A3760A;
+    --fs-name-bg:#FFFFFF; --fs-name-text:#131210;
+    --fs-duty-bg:#FCEEC4; --fs-duty-text:#6B4B00;
+    --fs-sink-bg:#F6F6F1; --fs-sink-text:#B7B7A9;
+    --fs-card-bg:#FFFFFF; --fs-card-border:#B7B7A9;
+    --fs-title-text:#131210; --fs-timer-label:#6D6C60; --fs-timer-value:#131210;
+    --fs-empty-text:#8C8B7C; --fs-select-border:#C9C9BB;
+    --fs-alert-bg:#FBDEDC; --fs-alert-text:#AE1E1B;
 
-    /* elevation — three tiers, each visually distinct */
-    --e1:0 1px 2px rgba(16,20,26,.06), 0 1px 1px rgba(16,20,26,.04);
-    --e2:0 2px 4px rgba(16,20,26,.07), 0 6px 14px rgba(16,20,26,.08);
-    --e3:0 2px 8px rgba(16,20,26,.10), 0 12px 32px rgba(16,20,26,.18);
-    --ring:0 0 0 3px rgba(224,118,27,.38);
+    /* elevation — flat and modernist: hairlines do the separating,
+       shadow is only a faint lift for genuinely floating elements */
+    --e1:none;
+    --e2:0 1px 0 rgba(19,18,16,.12);
+    --e3:0 6px 20px rgba(19,18,16,.22);
+    --ring:0 0 0 3px rgba(218,40,36,.38);
 
     --cell-sheen:rgba(255,255,255,0);
-    --r-sm:4px; --r-md:8px; --r-lg:12px;
+    --r-sm:2px; --r-md:3px; --r-lg:5px;
   }
 
   /* Dark theme */
   [data-theme="dark"]{
-    --canvas:#06080B;
-    --surface:#1C222B;
-    --surface-alt:#232933;
-    --surface-sunken:#12151A;
-    --surface-hover:#252B34;
-    --line:#4D5869;
-    --line-strong:#626E7F;
-    --char:#E8EBF0;
-    --muted:#8B94A3;
-    --placeholder:#5A6372;
-    --field-border:#3A424E;
+    --canvas:#111111;
+    --surface:#1C1C1A;
+    --surface-alt:#232320;
+    --surface-sunken:#151513;
+    --surface-hover:#282824;
+    --line:#3C3C36;
+    --line-strong:#504F47;
+    --char:#F1F1EA;
+    --muted:#A3A295;
+    --placeholder:#67665A;
+    --field-border:#3C3C36;
 
-    --band:#0A0D12;
+    --band:#000000;
     --band-ink:#FFFFFF;
-    --band-ink-soft:#8B94A3;
-    --header-bg:#0A0D12;
+    --band-ink-soft:#A3A295;
+    --header-bg:#000000;
 
-    --c1-tint:#2A1E12; --c2-tint:#241F12;
+    --c1:#FF5A50; --c1-dark:#DA2824; --c1-tint:#3A1915;
+    --c2:#6FA3EA; --c2-tint:#162238;
+    --duty-tint:#2E2608; --duty-line:#F0B000; --duty-ink:#F2CB5C;
+    --sink:#3FB771; --sink-deep:#1E8A4C;
+    --bad:#FF6B61; --good:#3FB771;
 
-    --sink-idle-bg:#1E232B; --sink-idle-text:#4E5767;
-    --empty-slot-bg:#14181E;
+    --sink-idle-bg:#1C1C1A; --sink-idle-text:#504F47;
+    --empty-slot-bg:#151513;
 
-    --fs-bg:#06080B; --fs-line:#626E7F;
-    --fs-head-bg:#222935; --fs-head-text:#FFFFFF;
-    --fs-label-bg:#14181E; --fs-label-text:#7FD0F5; --fs-duty-label-text:#D4A868;
-    --fs-name-bg:#242B35; --fs-name-text:#FFFFFF;
-    --fs-duty-bg:#241C12; --fs-duty-text:#FFD9A8;
-    --fs-sink-bg:#1C222B; --fs-sink-text:#5C6878;
-    --fs-card-bg:#1C222B; --fs-card-border:#626E7F;
-    --fs-title-text:#FFFFFF; --fs-timer-label:#8B94A3; --fs-timer-value:#FFFFFF;
-    --fs-empty-text:#7D8694; --fs-select-border:#3A424E;
-    --fs-alert-bg:#3A1A16; --fs-alert-text:#FF8A75;
+    --fs-bg:#111111; --fs-line:#504F47;
+    --fs-head-bg:#000000; --fs-head-text:#FFFFFF;
+    --fs-label-bg:#151513; --fs-label-text:#6FA3EA; --fs-duty-label-text:#F2CB5C;
+    --fs-name-bg:#1C1C1A; --fs-name-text:#FFFFFF;
+    --fs-duty-bg:#2E2608; --fs-duty-text:#F6D878;
+    --fs-sink-bg:#1C1C1A; --fs-sink-text:#504F47;
+    --fs-card-bg:#1C1C1A; --fs-card-border:#504F47;
+    --fs-title-text:#FFFFFF; --fs-timer-label:#A3A295; --fs-timer-value:#FFFFFF;
+    --fs-empty-text:#86847A; --fs-select-border:#3C3C36;
+    --fs-alert-bg:#3A1915; --fs-alert-text:#FF9088;
 
-    /* on dark, shadow alone is nearly invisible — pair it with a
-       hairline top highlight so raised things still read as raised */
-    --e1:0 1px 2px rgba(0,0,0,.55);
-    --e2:0 2px 6px rgba(0,0,0,.55), 0 8px 20px rgba(0,0,0,.45);
-    --e3:0 3px 10px rgba(0,0,0,.55), 0 14px 38px rgba(0,0,0,.65);
-    --cell-sheen:rgba(255,255,255,.055);
-    --ring:0 0 0 3px rgba(224,118,27,.45);
+    /* on dark, a hairline highlight reads as "raised" better than shadow */
+    --e1:none;
+    --e2:0 1px 0 rgba(0,0,0,.6);
+    --e3:0 8px 28px rgba(0,0,0,.6);
+    --cell-sheen:rgba(255,255,255,.05);
+    --ring:0 0 0 3px rgba(255,90,80,.45);
   }
 
   *{box-sizing:border-box;}
@@ -168,12 +179,17 @@
                box-shadow .14s ease, transform .08s ease, color .14s ease;
   }
   button:active{transform:translateY(1px);}
-  .btn-primary{background:var(--c1); color:#fff; box-shadow:var(--e1);}
-  .btn-primary:hover{background:var(--c1-dark); box-shadow:var(--e2);}
+  /* Primary action is always the solid poster-red block — the one
+     colour in the page that means "do this now", so it has to read as
+     a button at a glance on both the black app bar and white cards. */
+  .btn-primary{background:var(--c1); color:#fff;}
+  .btn-primary:hover{background:var(--c1-dark);}
   .btn-secondary{background:var(--surface-sunken); color:var(--char);}
   .btn-secondary:hover{background:var(--surface-hover);}
-  .btn-outline{background:transparent; color:var(--band-ink); border:1px solid rgba(255,255,255,.28);}
-  .btn-outline:hover{border-color:rgba(255,255,255,.55); background:rgba(255,255,255,.08);}
+  /* On the black app bar a thin outline alone reads as a label, not a
+     control — give it a visible fill so it reads as a pressable chip. */
+  .btn-outline{background:rgba(255,255,255,.14); color:var(--band-ink); border:1px solid rgba(255,255,255,.4);}
+  .btn-outline:hover{border-color:rgba(255,255,255,.7); background:rgba(255,255,255,.24);}
   .btn-danger{background:var(--bad); color:#fff;}
   .btn-danger:hover{filter:brightness(1.08);}
   /* outline button for use on LIGHT surfaces (the plain .btn-outline is
@@ -206,25 +222,29 @@
     background:var(--surface); border:1px solid var(--line-strong); border-radius:var(--r-md);
     margin-bottom:20px; overflow:hidden; box-shadow:var(--e2);
   }
+  /* Nameplate: a flat white bar. Course colour is never painted onto a
+     <select> itself — browsers reuse a <select>'s own background/text
+     colour to paint its native popup list, so a red/blue select renders
+     a red/blue dropdown list too. Identity here is typographic (bold
+     display face) and the course name is spelled out in the field next
+     to it; bright colour stays reserved for the few small accents
+     (duty tint, sink indicator) and the primary action buttons. */
   .block-head{
     display:flex; align-items:center; gap:12px; flex-wrap:wrap;
-    padding:11px 14px; background:var(--band); color:var(--band-ink);
+    padding:11px 14px; background:var(--surface); color:var(--char);
+    border-bottom:1px solid var(--line);
   }
-  .block-head.c2{background:var(--c2-navy);}
   .block-head input.hdr-field, .block-head select.hdr-field{
     font-family:inherit; font-size:.86rem; padding:6px 9px;
     border-radius:var(--r-sm); border:1px solid var(--field-border);
     background:var(--surface); color:var(--char); min-width:140px;
   }
   .block-head select.hdr-field{cursor:pointer;}
-  .block-head .id-badge-select{
-    font-family:var(--font-display);
-    font-weight:700; font-size:.88rem; background:rgba(255,255,255,.14);
-    color:#fff; border:1px solid rgba(255,255,255,.3);
-    padding:6px 9px; border-radius:var(--r-sm);
-    min-width:auto; cursor:pointer;
+  .block-head select.hdr-field.id-badge-select{
+    font-family:var(--font-display); font-stretch:var(--font-stretch-display);
+    font-weight:700; font-size:.95rem; letter-spacing:.01em;
+    padding:6px 12px; min-width:auto;
   }
-  .block-head .id-badge-select option{color:#000;}
   .block-actions{margin-left:auto; display:flex; gap:6px; flex-wrap:wrap;}
   .block-actions button{padding:6px 11px; font-size:.78rem;}
 
@@ -240,7 +260,11 @@
     display:grid; grid-template-columns:auto repeat(8,1fr); gap:1px;
     background:var(--line-strong); border-top:1px solid var(--line-strong);
   }
-  .empty{opacity:.5;}
+  /* "Not in use" is a deliberate sunken surface, not a greyed-out /
+     half-opacity look — those seats are still real inputs a teacher can
+     type a name into to start a kitchen, so they need to read as quiet
+     and available, not broken or disabled. */
+  .khead.empty{background:var(--surface-sunken); color:var(--muted); font-weight:600;}
   .khead{
     font-family:var(--font-display); font-stretch:var(--font-stretch-display);
     font-size:.86rem; font-weight:700; letter-spacing:.05em;
@@ -254,7 +278,8 @@
     background:var(--surface); color:var(--char); font-weight:600;
     transition:background-color .12s ease;
   }
-  input.seat::placeholder{color:var(--placeholder); font-weight:400;}
+  input.seat.empty{background:var(--surface-sunken);}
+  input.seat::placeholder{color:var(--placeholder); font-weight:400; font-style:italic;}
   input.seat:focus{background:var(--c1-tint); outline:2px solid var(--c1); outline-offset:-2px;}
   input.seat.split-cell{color:var(--bad); font-style:italic; font-size:.74rem; font-weight:600;}
   .seat-label{
@@ -267,12 +292,12 @@
     text-align:right; justify-content:flex-end; padding-right:12px;
   }
   .duty{
-    font-size:.72rem; padding:8px 5px; text-align:center; color:var(--char);
-    background:var(--c1-tint); border-top:2px solid var(--c1); white-space:pre-line;
+    font-size:.72rem; padding:8px 5px; text-align:center; color:var(--duty-ink);
+    background:var(--duty-tint); border-top:3px solid var(--duty-line); white-space:pre-line;
     font-weight:600; display:flex; align-items:center; justify-content:center;
   }
-  .block-head.c2 ~ .kitchen-grid .duty,
-  .block-card:has(.block-head.c2) .duty{background:var(--c2-tint); border-top-color:var(--c2);}
+  .duty.empty{background:var(--surface-sunken); border-top-color:var(--line); color:var(--muted);}
+  .centersink.empty{background:var(--surface-sunken);}
   .centersink{
     font-size:.7rem; padding:6px 4px; text-align:center;
     background:var(--sink-idle-bg); color:var(--sink-idle-text);
@@ -292,7 +317,15 @@
   .empty-slot-label{font-size:.9rem; font-weight:600; color:var(--muted);}
 
   /* Tables */
-  .duties-panel{max-width:860px;}
+  .duties-panel{max-width:860px; margin-left:auto; margin-right:auto;}
+  .settings-section{margin-bottom:36px;}
+  .settings-section h2{
+    font-family:var(--font-display); font-stretch:var(--font-stretch-display);
+    font-size:1.05rem; font-weight:700; margin:0 0 4px; color:var(--char);
+    padding-bottom:8px; border-bottom:3px solid var(--c1);
+  }
+  .settings-section:nth-of-type(2) h2{border-bottom-color:var(--c2);}
+  .settings-section:nth-of-type(3) h2{border-bottom-color:var(--sink);}
   table.duty-table{
     width:100%; border-collapse:separate; border-spacing:0;
     background:var(--surface); border:1px solid var(--line-strong);
@@ -489,9 +522,9 @@
     <div class="sub">Runs in this browser only. Nothing leaves this computer.</div>
   </div>
   <div class="hbtns">
-    <button class="btn-primary" onclick="rotateAll()">Rotate all jobs</button>
+    <button class="btn-primary" id="rotateBtn" onclick="rotateCurrentDay()">Rotate A Day</button>
     <button class="btn-outline" id="themeToggle" onclick="toggleTheme()">Dark</button>
-    <button class="btn-outline" onclick="openMenu(event, this, backupMenuHtml())">Backup</button>
+    <button class="btn-outline" id="tab-settings" onclick="switchTab('settings')">Settings</button>
     <input type="file" id="restoreFile" accept=".json" style="display:none" onchange="loadBackupFile(this)">
   </div>
 </header>
@@ -499,24 +532,34 @@
 <nav class="tabs">
   <button id="tab-A" class="active" onclick="switchTab('A')">A Day</button>
   <button id="tab-B" onclick="switchTab('B')">B Day</button>
-  <button id="tab-duties" onclick="switchTab('duties')">Extra duties</button>
-  <button id="tab-jobs" onclick="switchTab('jobs')">Job titles</button>
 </nav>
 
 <main>
   <div id="panel-A" class="day-panel active"></div>
   <div id="panel-B" class="day-panel"></div>
-  <div id="panel-duties" class="day-panel duties-panel">
-    <p class="hint">Tick the blocks each duty applies to. Duties move one kitchen along every time that block advances.</p>
-    <table class="duty-table" id="dutyTable"></table>
-    <div class="add-duty-row">
-      <button class="btn-secondary" onclick="addDuty()">Add duty</button>
-      <button class="btn-quiet" onclick="loadDefaultDuties()">Load standard duty list</button>
-    </div>
-  </div>
-  <div id="panel-jobs" class="day-panel duties-panel">
-    <p class="hint">Job titles belong to the seat, not the student. Whoever rotates into the first seat holds the first job that day. A kitchen of 3 uses only the first 3 titles.</p>
-    <table class="duty-table" id="jobTitleTable"></table>
+  <div id="panel-settings" class="day-panel duties-panel">
+    <section class="settings-section">
+      <h2>Extra duties</h2>
+      <p class="hint">Tick the blocks each duty applies to. Duties move one kitchen along every time that block advances.</p>
+      <table class="duty-table" id="dutyTable"></table>
+      <div class="add-duty-row">
+        <button class="btn-secondary" onclick="addDuty()">Add duty</button>
+        <button class="btn-quiet" onclick="loadDefaultDuties()">Load standard duty list</button>
+      </div>
+    </section>
+    <section class="settings-section">
+      <h2>Job titles</h2>
+      <p class="hint">Job titles belong to the seat, not the student. Whoever rotates into the first seat holds the first job that day. A kitchen of 3 uses only the first 3 titles.</p>
+      <table class="duty-table" id="jobTitleTable"></table>
+    </section>
+    <section class="settings-section">
+      <h2>Backup &amp; restore</h2>
+      <p class="hint">Everything lives only in this browser. Download a backup file now and then, especially before a big roster change — it's the only way to recover if this browser's storage is ever cleared.</p>
+      <div class="add-duty-row">
+        <button class="btn-secondary" onclick="downloadBackup()">Download backup</button>
+        <button class="btn-quiet" onclick="document.getElementById('restoreFile').click()">Load backup</button>
+      </div>
+    </section>
   </div>
 </main>
 
@@ -775,10 +818,19 @@ function restoreBlockOriginal(blockId){
   showToast(`${blockId}: restored to saved original.`);
 }
 
-function rotateAll(){
-  Object.keys(state.blocks).forEach(id=>advanceBlock(id));
+// Rotates only the blocks scheduled for one day — A and B days never run
+// on the same day, so "rotate everything regardless of day" was never
+// actually the useful action; the header button tracks whichever day
+// tab is currently open instead (see switchTab).
+function rotateDay(day){
+  state.slots[day].filter(Boolean).forEach(id=>advanceBlock(id));
   render();
-  showToast('All blocks rotated.');
+  showToast(`All ${day} Day blocks rotated.`);
+}
+
+function rotateCurrentDay(){
+  if(currentDayTab !== 'A' && currentDayTab !== 'B') return;
+  rotateDay(currentDayTab);
 }
 
 // Duties
@@ -1014,11 +1066,21 @@ function renderDutyTable(){
 // Render
 function escapeAttr(s){ return String(s).replace(/"/g,'&quot;'); }
 
+let currentDayTab = 'A';
+
 function switchTab(which){
-  ['A','B','duties','jobs'].forEach(t=>{
+  ['A','B','settings'].forEach(t=>{
     document.getElementById('panel-'+t).classList.toggle('active', t===which);
     document.getElementById('tab-'+t).classList.toggle('active', t===which);
   });
+  const rotateBtn = document.getElementById('rotateBtn');
+  if(which === 'A' || which === 'B'){
+    currentDayTab = which;
+    rotateBtn.textContent = `Rotate ${which} Day`;
+    rotateBtn.style.display = '';
+  } else {
+    rotateBtn.style.display = 'none';
+  }
 }
 
 function renderDayPanel(day){
@@ -1050,8 +1112,8 @@ function renderDayPanel(day){
         </select>
         <div class="block-actions">
           <button class="btn-primary" onclick="advanceBlock('${id}'); render();">Advance</button>
-          <button class="btn-outline" style="border-color:#999" onclick="openFullscreen('${id}')">${ICON_EXPAND}Full screen</button>
-          <button class="btn-outline menu-trigger" style="border-color:#999" onclick="openMenu(event, this, blockMenuHtml('${id}'))" aria-label="More actions">${ICON_KEBAB}</button>
+          <button class="btn-quiet" onclick="openFullscreen('${id}')">${ICON_EXPAND}Full screen</button>
+          <button class="btn-quiet menu-trigger" onclick="openMenu(event, this, blockMenuHtml('${id}'))" aria-label="More actions">${ICON_KEBAB}</button>
         </div>
       </div>
       <div class="kitchen-grid">`;
@@ -1071,7 +1133,8 @@ function renderDayPanel(day){
         const isEmpty = !active.includes(ki);
         const val = block.kitchens[ki].students[r] || '';
         const splitCls = isSplit(val) ? 'split-cell' : '';
-        html += `<input class="seat ${splitCls} ${isEmpty?'empty':''}" value="${escapeAttr(val)}"
+        const hint = (isEmpty && r===0) ? ' placeholder="+ add kitchen"' : '';
+        html += `<input class="seat ${splitCls} ${isEmpty?'empty':''}" value="${escapeAttr(val)}"${hint}
           onchange="updateSeat('${id}',${ki},${r},this.value)">`;
       }
     }
@@ -1261,13 +1324,6 @@ function blockMenuHtml(id){
     <button onclick="removeClass('${id}');" style="color:var(--bad);">${ICON_TRASH}Remove this class</button>
   `;
 }
-function backupMenuHtml(){
-  return `
-    <button onclick="downloadBackup();">${ICON_DOWNLOAD}Download backup</button>
-    <button onclick="document.getElementById('restoreFile').click();">${ICON_UPLOAD}Load backup</button>
-  `;
-}
-
 // Bell schedule and fullscreen
 // Position within a day (1st, 2nd, 3rd, 4th block of that day) maps
 // directly to these times, regardless of A or B day — both day types use
