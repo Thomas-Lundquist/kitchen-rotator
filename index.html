@@ -281,7 +281,9 @@
   input.seat.empty{background:var(--surface-sunken);}
   input.seat::placeholder{color:var(--placeholder); font-weight:400; font-style:italic;}
   input.seat:focus{background:var(--c1-tint); outline:2px solid var(--c1); outline-offset:-2px;}
-  input.seat.split-cell{color:var(--bad); font-style:italic; font-size:.74rem; font-weight:600;}
+  /* Unfilled job in a staffed kitchen — shown as a placeholder so the seat is
+     still empty and typing a name over it needs no special handling. */
+  input.seat.split-placeholder::placeholder{color:var(--bad); font-style:italic; font-size:.74rem; font-weight:600; opacity:1;}
   .seat-label{
     box-sizing:border-box; height:46px; display:flex; align-items:center; justify-content:flex-end;
     padding:0 12px; font-size:.82rem; font-weight:600; color:var(--char);
@@ -494,6 +496,17 @@
     display:flex; align-items:center; justify-content:center;
     box-shadow:inset 0 1px 0 var(--cell-sheen);
   }
+  /* Unfilled job in the projector view: same cell as a name, but italic and in
+     the warning colour so the kitchen reads it as "this one is on all of us". */
+  .fs-gsplit{
+    background:var(--fs-name-bg); color:var(--bad);
+    font-family:var(--font-display); font-stretch:var(--font-stretch-display);
+    font-weight:600; font-style:italic; white-space:nowrap; letter-spacing:.06em;
+    text-align:center; padding:2px 6px; overflow:hidden; min-width:0;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:inset 0 1px 0 var(--cell-sheen);
+  }
+  .fs-glabel.fs-glabel-split{color:var(--fs-empty-text); font-style:italic;}
   .fs-gduty{
     background:var(--fs-duty-bg); color:var(--fs-duty-text);
     font-family:var(--font-display); font-stretch:var(--font-stretch-display);
@@ -549,7 +562,7 @@
     </section>
     <section class="settings-section">
       <h2>Job titles</h2>
-      <p class="hint">Job titles belong to the seat, not the student. Whoever rotates into the first seat holds the first job that day. A kitchen of 3 uses only the first 3 titles.</p>
+      <p class="hint">Job titles belong to the seat, not the student. Whoever rotates into the first seat holds the first job that day. A kitchen of 3 uses only the first 3 titles; the jobs below that read SPLIT, meaning the whole kitchen shares that work.</p>
       <table class="duty-table" id="jobTitleTable"></table>
     </section>
     <section class="settings-section">
@@ -753,10 +766,16 @@ function showToast(msg){
 // --- ACTIVE KITCHEN / SPLIT HELPERS ---
 function isSplit(v){ return String(v||'').trim().toUpperCase() === 'SPLIT'; }
 
+// A seat counts as filled only when it holds an actual name. Blanks, stray
+// whitespace and the SPLIT marker all mean "nobody holds this job" — SPLIT is
+// a statement about the JOB (its work is shared by the kitchen), not about a
+// student, and it is derived at render time rather than stored.
+function isRealStudent(v){ return !!String(v||'').trim() && !isSplit(v); }
+
 function activeKitchenIdxs(block){
   const idxs = [];
   block.kitchens.forEach((k,i)=>{
-    const hasReal = k.students.some(s => s && !isSplit(s));
+    const hasReal = k.students.some(isRealStudent);
     if(hasReal) idxs.push(i);
   });
   return idxs;
@@ -767,21 +786,16 @@ function advanceBlock(blockId){
   const block = state.blocks[blockId];
   const active = activeKitchenIdxs(block);
 
+  // Only real names rotate, and they always re-seat from the top: a kitchen of
+  // 3 holds the first 3 job titles and the jobs below them read SPLIT. Empty
+  // seats used to ride along in the roster, which marched a phantom student
+  // through the titles and left Manager unfilled while Kitchen Porter was
+  // staffed — backwards from the rule the UI states.
   active.forEach(ki=>{
     const k = block.kitchens[ki];
-    const nonSplitVals = k.students.filter(s=>!isSplit(s));
-    if(nonSplitVals.length > 1){
-      const roster = nonSplitVals.slice();
-      const moved = roster.pop();
-      roster.unshift(moved);
-      let rIdx = 0;
-      k.students = k.students.map(cell => {
-        if(isSplit(cell)) return cell;
-        const val = roster[rIdx] || '';
-        rIdx++;
-        return val;
-      });
-    }
+    const names = k.students.filter(isRealStudent);
+    if(names.length > 1) names.unshift(names.pop());
+    k.students = k.students.map((_, i) => names[i] || '');
   });
 
   refreshDuties(blockId, true);
@@ -801,14 +815,11 @@ function saveBlockOriginal(blockId){
 function restoreBlockOriginal(blockId){
   const block = state.blocks[blockId];
   block.kitchens.forEach(k=>{
-    const cleanOrig = k.original.filter(s=>!isSplit(s));
-    let rIdx = 0;
-    k.students = k.students.map(cell=>{
-      if(isSplit(cell)) return cell;
-      const val = rIdx < cleanOrig.length ? cleanOrig[rIdx] : '';
-      rIdx++;
-      return val;
-    });
+    // Same top-down seating a rotation produces, so Restore and Advance can
+    // never disagree about where a short kitchen's names sit.
+    const cleanOrig = k.original.filter(isRealStudent);
+    const len = Math.max(k.students.length, cleanOrig.length);
+    k.students = Array.from({length: len}, (_, i) => cleanOrig[i] || '');
   });
   block.dutyIndex = 0;
   block.centerSink = 0;
@@ -1131,9 +1142,14 @@ function renderDayPanel(day){
       html += `<div class="seat-label">${escapeHtml(state.jobTitles[r])}</div>`;
       for(let ki=0; ki<NUM_KITCHENS; ki++){
         const isEmpty = !active.includes(ki);
-        const val = block.kitchens[ki].students[r] || '';
-        const splitCls = isSplit(val) ? 'split-cell' : '';
-        const hint = (isEmpty && r===0) ? ' placeholder="+ add kitchen"' : '';
+        const raw = block.kitchens[ki].students[r] || '';
+        const val = isRealStudent(raw) ? raw : '';
+        // An unfilled job in a kitchen that HAS students is shared by the
+        // group, so it reads SPLIT. A placeholder rather than a value means
+        // typing a name just works and clearing one brings the marker back.
+        const splitCls = (!isEmpty && !val) ? 'split-placeholder' : '';
+        const hint = (isEmpty && r===0) ? ' placeholder="+ add kitchen"'
+          : (splitCls ? ' placeholder="SPLIT"' : '');
         html += `<input class="seat ${splitCls} ${isEmpty?'empty':''}" value="${escapeAttr(val)}"${hint}
           onchange="updateSeat('${id}',${ki},${r},this.value)">`;
       }
@@ -1230,7 +1246,10 @@ function updateCourse(blockId, val){
 function updateSeat(blockId, kIdx, rIdx, val){
   const k = state.blocks[blockId].kitchens[kIdx];
   while(k.students.length <= rIdx) k.students.push('');
-  k.students[rIdx] = val;
+  // SPLIT is derived now, so typing it by hand just clears the seat: the cell
+  // shows the marker either way and the saved data stays honest about who is
+  // actually in the kitchen.
+  k.students[rIdx] = isSplit(val) ? '' : val;
   saveState();
   render(); // re-render so empty/active styling and duty row stay in sync
 }
@@ -1430,37 +1449,38 @@ function renderFullscreen(){
     // causing the grid to run off-screen). The label column is a fixed width.
     // Row template: header (auto), 5 name rows (1fr each — they share the
     // leftover height equally and large), duty row (0.9fr), sink row (auto).
-    // Only render job rows that at least one active kitchen actually fills.
-    // With e.g. 27 students in 7 kitchens nobody has a 5th seat, so the
-    // Dishwasher row would otherwise sit empty and eat a full row of height
-    // that the real rows could be using.
+    // Job rows nobody fills still render — they read SPLIT, which is what tells
+    // the kitchen that work is shared — but at half height. With e.g. 27
+    // students in 7 kitchens nobody has a 5th seat, so a full-height Dishwasher
+    // row would eat height the real name rows could be using.
     let usedRows = 0;
     for(let r=0; r<MAX_KITCHEN; r++){
-      const anyone = active.some(ki=>{
-        const n = block.kitchens[ki].students[r];
-        return n && !isSplit(n);
-      });
-      if(anyone) usedRows = r + 1;
+      if(active.some(ki => isRealStudent(block.kitchens[ki].students[r]))) usedRows = r + 1;
     }
     if(usedRows === 0) usedRows = 1;
+    const splitRows = MAX_KITCHEN - usedRows;
 
     const cols = `minmax(0,240px) repeat(${active.length}, minmax(0,1fr))`;
     // All rows are fr fractions (min 0) so they ALWAYS sum to exactly the
     // grid's height and can never be pushed past it by their content:
     // header 0.7, each used name row 1, duty 1.1 (roomy for wrapping duty
     // text), sink 0.7.
-    const rows = `minmax(0,0.7fr) repeat(${usedRows}, minmax(0,1fr)) minmax(0,1.1fr) minmax(0,0.7fr)`;
+    const rows = `minmax(0,0.7fr) repeat(${usedRows}, minmax(0,1fr))`
+      + (splitRows > 0 ? ` repeat(${splitRows}, minmax(0,0.5fr))` : '')
+      + ` minmax(0,1.1fr) minmax(0,0.7fr)`;
     gridHtml += `<div class="fs-grid" style="grid-template-columns:${cols}; grid-template-rows:${rows}">`;
 
     gridHtml += `<div class="fs-ghead">&nbsp;</div>`;
     active.forEach(ki=>{ gridHtml += `<div class="fs-ghead">K${ki+1}</div>`; });
 
-    for(let r=0; r<usedRows; r++){
-      gridHtml += `<div class="fs-glabel">${escapeHtml(state.jobTitles[r])}</div>`;
+    for(let r=0; r<MAX_KITCHEN; r++){
+      const splitRow = r >= usedRows;
+      gridHtml += `<div class="fs-glabel ${splitRow?'fs-glabel-split':''}">${escapeHtml(state.jobTitles[r])}</div>`;
       active.forEach(ki=>{
         const name = block.kitchens[ki].students[r];
-        const display = (name && !isSplit(name)) ? escapeHtml(name) : '';
-        gridHtml += `<div class="fs-gname">${display}</div>`;
+        gridHtml += isRealStudent(name)
+          ? `<div class="fs-gname">${escapeHtml(name)}</div>`
+          : `<div class="fs-gsplit">SPLIT</div>`;
       });
     }
 
@@ -1556,15 +1576,25 @@ function maxFitFontSize(elements, maxSizePx, minSizePx){
 
 function fitJobRows(){
   const nameEls = Array.from(document.querySelectorAll('.fs-gname'));
-  const labelEls = Array.from(document.querySelectorAll('.fs-glabel'));
+  const labelEls = Array.from(document.querySelectorAll('.fs-glabel:not(.fs-glabel-split)'));
+  const splitEls = Array.from(document.querySelectorAll('.fs-gsplit'));
+  const splitLabelEls = Array.from(document.querySelectorAll('.fs-glabel-split'));
   const headEls = Array.from(document.querySelectorAll('.fs-ghead'));
   const dutyEls = Array.from(document.querySelectorAll('.fs-gduty'));
   const sinkEls = Array.from(document.querySelectorAll('.fs-gsink'));
 
   // Each role is measured against its own cells (now fixed in both
   // dimensions) and grown to the largest size that fits every one of them.
+  // SPLIT cells are measured apart from names on purpose: one shared fit across
+  // both would measure the half-height SPLIT row and drag every real name down
+  // to that size.
   maxFitFontSize(nameEls, 220, 14);
-  maxFitFontSize(labelEls, 90, 12);
+  const labelPx = maxFitFontSize(labelEls, 90, 12);
+  maxFitFontSize(splitEls, 90, 10);
+  // Capped at the shared job-label size: left to its own fit, a short word like
+  // "Dishwasher" in a half-height row grows LARGER than "Kitchen Porter" above
+  // it, which reads as emphasis on exactly the row we are de-emphasising.
+  maxFitFontSize(splitLabelEls, Math.max(10, labelPx), 10);
   maxFitFontSize(headEls, 110, 12);
   maxFitFontSize(dutyEls, 40, 10);
   maxFitFontSize(sinkEls, 36, 10);
