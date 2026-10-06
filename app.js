@@ -916,12 +916,14 @@ function renderFullscreen(){
 
     const cols = `minmax(0,240px) repeat(${active.length}, minmax(0,1fr))`;
     // All rows are fr fractions (min 0) so they ALWAYS sum to exactly the
-    // grid's height and can never be pushed past it by their content:
-    // header 0.7, each used name row 1, duty 1.1 (roomy for wrapping duty
-    // text), sink 0.7.
-    const rows = `minmax(0,0.7fr) repeat(${usedRows}, minmax(0,1fr))`
+    // grid's height and can never be pushed past it by their content. The
+    // header and each used name row give up 1/8 of their height (0.7->0.6125,
+    // 1->0.875); duty gets all of that back on top of its base 1.1 so the
+    // extra-duty text has more room to grow legible. Sink stays at 0.7.
+    const dutyFr = 1.1 + (0.7 - 0.6125) + usedRows * (1 - 0.875);
+    const rows = `minmax(0,0.6125fr) repeat(${usedRows}, minmax(0,0.875fr))`
       + (splitRows > 0 ? ` repeat(${splitRows}, minmax(0,0.5fr))` : '')
-      + ` minmax(0,1.1fr) minmax(0,0.7fr)`;
+      + ` minmax(0,${dutyFr}fr) minmax(0,0.7fr)`;
     gridHtml += `<div class="fs-grid" style="grid-template-columns:${cols}; grid-template-rows:${rows}">`;
 
     gridHtml += `<div class="fs-ghead">&nbsp;</div>`;
@@ -1053,7 +1055,7 @@ function fitJobRows(){
   // it, which reads as emphasis on exactly the row we are de-emphasising.
   maxFitFontSize(splitLabelEls, Math.max(10, labelPx), 10);
   maxFitFontSize(headEls, 110, 12);
-  maxFitFontSize(dutyEls, 40, 10);
+  maxFitFontSize(dutyEls, 56, 10);
   maxFitFontSize(sinkEls, 36, 10);
 }
 
