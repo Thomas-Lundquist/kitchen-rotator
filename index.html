@@ -1094,6 +1094,53 @@ function switchTab(which){
   }
 }
 
+// The derived look of one seat. Shared by the initial render and the in-place
+// refresh below so the two can never drift apart.
+function seatChrome(block, active, ki, r){
+  const isEmpty = !active.includes(ki);
+  const isSplitSlot = !isEmpty && !isRealStudent(block.kitchens[ki].students[r]);
+  return {
+    isEmpty, isSplitSlot,
+    placeholder: (isEmpty && r===0) ? '+ add kitchen' : (isSplitSlot ? 'SPLIT' : '')
+  };
+}
+
+// Editing a seat changes only derived chrome — SPLIT markers, active/empty
+// styling, the duty and sink rows — never the grid's structure. Rebuilding the
+// panel for that destroyed the very input the browser was about to focus, which
+// is what dumped you out of the grid on every Tab. So update the nodes in place
+// and leave the inputs (and the caret inside them) alone.
+function refreshBlockChrome(blockId){
+  const block = state.blocks[blockId];
+  if(!block) return;
+  refreshDuties(blockId, false);
+  const active = activeKitchenIdxs(block);
+  const card = document.querySelector(`[data-block-card="${blockId}"]`);
+  if(!card) return;
+
+  card.querySelectorAll('.khead[data-k]').forEach(el=>{
+    el.classList.toggle('empty', !active.includes(+el.dataset.k));
+  });
+  card.querySelectorAll('input.seat').forEach(el=>{
+    const c = seatChrome(block, active, +el.dataset.k, +el.dataset.r);
+    el.classList.toggle('empty', c.isEmpty);
+    el.classList.toggle('split-placeholder', c.isSplitSlot);
+    el.placeholder = c.placeholder; // never el.value: that is what the user is typing
+  });
+  card.querySelectorAll('.duty[data-k]').forEach(el=>{
+    const ki = +el.dataset.k;
+    el.classList.toggle('empty', !active.includes(ki));
+    el.textContent = (block._dutyDisplay && block._dutyDisplay[ki]) || '';
+  });
+  card.querySelectorAll('.centersink[data-k]').forEach(el=>{
+    const ki = +el.dataset.k;
+    const hasSink = !!(block._centerSinkDisplay && block._centerSinkDisplay[ki]);
+    el.classList.toggle('empty', !active.includes(ki));
+    el.classList.toggle('active', hasSink);
+    el.innerHTML = hasSink ? ICON_DROPLET + ' Center sink' : '';
+  });
+}
+
 function renderDayPanel(day){
   const container = document.getElementById('panel-'+day);
   const slots = state.slots[day];
@@ -1111,7 +1158,7 @@ function renderDayPanel(day){
     const block = state.blocks[id];
     refreshDuties(id, false); // ensure _dutyDisplay populated for render without mutating rotation
     const headClass = block.course===2 ? 'c2' : '';
-    html += `<div class="block-card">
+    html += `<div class="block-card" data-block-card="${id}">
       <div class="block-head ${headClass}">
         <select class="hdr-field id-badge-select" onchange="updatePosition('${id}', this.value)">
           <option value="prep">Prep (no class)</option>
@@ -1134,24 +1181,23 @@ function renderDayPanel(day){
     // Header row: label column, then each kitchen's header.
     html += `<div class="khead">&nbsp;</div>`;
     for(let ki=0; ki<NUM_KITCHENS; ki++){
-      html += `<div class="khead ${!active.includes(ki)?'empty':''}">K${ki+1}</div>`;
+      html += `<div class="khead ${!active.includes(ki)?'empty':''}" data-k="${ki}">K${ki+1}</div>`;
     }
 
     // One row per seat position, each spanning the label column + all 8 kitchens.
     for(let r=0; r<MAX_KITCHEN; r++){
       html += `<div class="seat-label">${escapeHtml(state.jobTitles[r])}</div>`;
       for(let ki=0; ki<NUM_KITCHENS; ki++){
-        const isEmpty = !active.includes(ki);
-        const raw = block.kitchens[ki].students[r] || '';
-        const val = isRealStudent(raw) ? raw : '';
         // An unfilled job in a kitchen that HAS students is shared by the
         // group, so it reads SPLIT. A placeholder rather than a value means
         // typing a name just works and clearing one brings the marker back.
-        const splitCls = (!isEmpty && !val) ? 'split-placeholder' : '';
-        const hint = (isEmpty && r===0) ? ' placeholder="+ add kitchen"'
-          : (splitCls ? ' placeholder="SPLIT"' : '');
-        html += `<input class="seat ${splitCls} ${isEmpty?'empty':''}" value="${escapeAttr(val)}"${hint}
-          onchange="updateSeat('${id}',${ki},${r},this.value)">`;
+        const c = seatChrome(block, active, ki, r);
+        const raw = block.kitchens[ki].students[r] || '';
+        const val = isRealStudent(raw) ? raw : '';
+        const hint = c.placeholder ? ` placeholder="${c.placeholder}"` : '';
+        html += `<input class="seat ${c.isSplitSlot?'split-placeholder':''} ${c.isEmpty?'empty':''}" value="${escapeAttr(val)}"${hint}
+          data-block="${id}" data-k="${ki}" data-r="${r}"
+          oninput="updateSeat('${id}',${ki},${r},this.value)">`;
       }
     }
 
@@ -1161,7 +1207,7 @@ function renderDayPanel(day){
     for(let ki=0; ki<NUM_KITCHENS; ki++){
       const isEmpty = !active.includes(ki);
       const dutyText = (block._dutyDisplay && block._dutyDisplay[ki]) || '';
-      html += `<div class="duty ${isEmpty?'empty':''}">${dutyText ? escapeHtml(dutyText) : ''}</div>`;
+      html += `<div class="duty ${isEmpty?'empty':''}" data-k="${ki}">${dutyText ? escapeHtml(dutyText) : ''}</div>`;
     }
 
     // Center Sink row — same fix applies here, which is what was drifting.
@@ -1169,7 +1215,7 @@ function renderDayPanel(day){
     for(let ki=0; ki<NUM_KITCHENS; ki++){
       const isEmpty = !active.includes(ki);
       const hasSink = !!(block._centerSinkDisplay && block._centerSinkDisplay[ki]);
-      html += `<div class="centersink ${hasSink?'active':''} ${isEmpty?'empty':''}">${hasSink ? ICON_DROPLET+' Center sink' : ''}</div>`;
+      html += `<div class="centersink ${hasSink?'active':''} ${isEmpty?'empty':''}" data-k="${ki}">${hasSink ? ICON_DROPLET+' Center sink' : ''}</div>`;
     }
 
     html += `</div></div>`;
@@ -1251,7 +1297,11 @@ function updateSeat(blockId, kIdx, rIdx, val){
   // actually in the kitchen.
   k.students[rIdx] = isSplit(val) ? '' : val;
   saveState();
-  render(); // re-render so empty/active styling and duty row stay in sync
+  // In-place, so the SPLIT markers and duty row keep up as you type without the
+  // focused input being torn out from under you. The full-screen view is a
+  // separate DOM, so rebuilding that one is harmless.
+  refreshBlockChrome(blockId);
+  if(fullscreenBlockId === blockId) renderFullscreen();
 }
 
 function render(){
@@ -1648,6 +1698,60 @@ function updateFullscreenTimers(){
 
 document.addEventListener('keydown', e=>{
   if(e.key === 'Escape' && fullscreenBlockId) closeFullscreen();
+});
+
+// --- SEAT KEYBOARD NAVIGATION ---
+// Tab keeps its native left-to-right walk across kitchens. Enter and the up/down
+// arrows move down one kitchen's column instead, which is the order a roster is
+// actually filled in.
+let seatNavByKeyboard = false;
+
+function seatAt(blockId, ki, r){
+  return document.querySelector(
+    `input.seat[data-block="${blockId}"][data-k="${ki}"][data-r="${r}"]`);
+}
+
+function moveSeatFocus(el, delta, wrap){
+  let ki = +el.dataset.k, r = +el.dataset.r + delta;
+  if(r >= MAX_KITCHEN){
+    if(!wrap || ki >= NUM_KITCHENS - 1) return;
+    ki++; r = 0;
+  }else if(r < 0){
+    if(!wrap || ki <= 0) return;
+    ki--; r = MAX_KITCHEN - 1;
+  }
+  const target = seatAt(el.dataset.block, ki, r);
+  if(!target) return;
+  seatNavByKeyboard = true;
+  target.focus();
+}
+
+document.addEventListener('keydown', e=>{
+  if(e.key === 'Tab'){ seatNavByKeyboard = true; return; }
+  const el = e.target;
+  if(!(el.classList && el.classList.contains('seat') && el.dataset.block)) return;
+  // Enter carries on into the next kitchen so a whole roster can be typed
+  // straight through; the arrows are spatial and stop at the kitchen's edge.
+  let delta = 0, wrap = false;
+  if(e.key === 'Enter'){ delta = e.shiftKey ? -1 : 1; wrap = true; }
+  else if(e.key === 'ArrowDown') delta = 1;
+  else if(e.key === 'ArrowUp') delta = -1;
+  else return;
+  e.preventDefault();
+  moveSeatFocus(el, delta, wrap);
+});
+
+document.addEventListener('mousedown', e=>{
+  if(e.target.classList && e.target.classList.contains('seat')) seatNavByKeyboard = false;
+});
+
+// Arriving by keyboard selects the whole name, so typing replaces it. Arriving by
+// click leaves the caret where it was aimed, so fixing one letter of "Kelly A."
+// never wipes the name.
+document.addEventListener('focusin', e=>{
+  const el = e.target;
+  if(seatNavByKeyboard && el.classList && el.classList.contains('seat')) el.select();
+  seatNavByKeyboard = false;
 });
 
 // Theme
