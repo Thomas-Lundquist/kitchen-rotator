@@ -1,0 +1,515 @@
+  /* Kitchen Rotation Tool.
+     Read two ways: by the teacher on a laptop, and by a room of
+     students off a wall TV. A modernist primary-colour system —
+     poster red for Culinary 1, cobalt for Culinary 2, mustard yellow
+     for duties, black doing all the structural work — on flat white/
+     near-black fields. Colour carries meaning; shadows and rounding
+     are kept deliberately minimal so the colour blocks read as shapes,
+     not as soft SaaS cards. */
+
+  /* Light theme (default) */
+  :root{
+    /* type — system stacks only; this file must work with no network.
+       Century Gothic ships with Windows and is a genuine geometric
+       sans, so the no-network fallback still lands close to the brief. */
+    --font:"Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI Variable Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-display:"League Spartan", "Century Gothic", "Spartan", "Futura", "Poppins", system-ui, sans-serif;
+    --font-stretch-display:100%;
+
+    /* neutral paper & ink — no warm cast */
+    --canvas:#F0F0EB;
+    --surface:#FFFFFF;
+    --surface-alt:#F6F6F1;
+    --surface-sunken:#E7E7E0;
+    --surface-hover:#ECECE5;
+    --line:#D7D7CD;
+    --line-strong:#B7B7A9;
+    --char:#131210;          /* primary text — near-true black */
+    --muted:#6D6C60;
+    --placeholder:#A7A698;
+    --field-border:#C9C9BB;
+
+    /* structural black bands (stay black in BOTH themes — they are
+       structure, not surface: column headers, table headers, toast) */
+    --band:#131210;
+    --band-ink:#FFFFFF;
+    --band-ink-soft:#B7B7A9;
+    --header-bg:#131210;
+
+    /* course accents — Bauhaus primary triad: poster red + cobalt,
+       mustard reserved for duties, kelly green for the sink signal */
+    --c1:#DA2824; --c1-dark:#AE1E1B; --c1-tint:#FBDEDC;
+    --c2:#1D4FA3; --c2-tint:#DBE5F5;
+    --duty-tint:#FCEEC4; --duty-line:#F0B000; --duty-ink:#6B4B00;
+    --sink:#1E8A4C; --sink-deep:#145C32;
+    --bad:#DA2824; --good:#1E8A4C;
+
+    --sink-idle-bg:#F6F6F1; --sink-idle-text:#B7B7A9;
+    --empty-slot-bg:#F6F6F1;
+
+    /* fullscreen board */
+    --fs-bg:#F0F0EB; --fs-line:#B7B7A9;
+    --fs-head-bg:#131210; --fs-head-text:#FFFFFF;
+    --fs-label-bg:#F6F6F1; --fs-label-text:#1D4FA3; --fs-duty-label-text:#A3760A;
+    --fs-name-bg:#FFFFFF; --fs-name-text:#131210;
+    --fs-duty-bg:#FCEEC4; --fs-duty-text:#6B4B00;
+    --fs-sink-bg:#F6F6F1; --fs-sink-text:#B7B7A9;
+    --fs-card-bg:#FFFFFF; --fs-card-border:#B7B7A9;
+    --fs-title-text:#131210; --fs-timer-label:#6D6C60; --fs-timer-value:#131210;
+    --fs-empty-text:#8C8B7C; --fs-select-border:#C9C9BB;
+    --fs-alert-bg:#FBDEDC; --fs-alert-text:#AE1E1B;
+
+    /* elevation — flat and modernist: hairlines do the separating,
+       shadow is only a faint lift for genuinely floating elements */
+    --e1:none;
+    --e2:0 1px 0 rgba(19,18,16,.12);
+    --e3:0 6px 20px rgba(19,18,16,.22);
+    --ring:0 0 0 3px rgba(218,40,36,.38);
+
+    --cell-sheen:rgba(255,255,255,0);
+    --r-sm:2px; --r-md:3px; --r-lg:5px;
+  }
+
+  /* Dark theme */
+  [data-theme="dark"]{
+    --canvas:#111111;
+    --surface:#1C1C1A;
+    --surface-alt:#232320;
+    --surface-sunken:#151513;
+    --surface-hover:#282824;
+    --line:#3C3C36;
+    --line-strong:#504F47;
+    --char:#F1F1EA;
+    --muted:#A3A295;
+    --placeholder:#67665A;
+    --field-border:#3C3C36;
+
+    --band:#000000;
+    --band-ink:#FFFFFF;
+    --band-ink-soft:#A3A295;
+    --header-bg:#000000;
+
+    --c1:#FF5A50; --c1-dark:#DA2824; --c1-tint:#3A1915;
+    --c2:#6FA3EA; --c2-tint:#162238;
+    --duty-tint:#2E2608; --duty-line:#F0B000; --duty-ink:#F2CB5C;
+    --sink:#3FB771; --sink-deep:#1E8A4C;
+    --bad:#FF6B61; --good:#3FB771;
+
+    --sink-idle-bg:#1C1C1A; --sink-idle-text:#504F47;
+    --empty-slot-bg:#151513;
+
+    --fs-bg:#111111; --fs-line:#504F47;
+    --fs-head-bg:#000000; --fs-head-text:#FFFFFF;
+    --fs-label-bg:#151513; --fs-label-text:#6FA3EA; --fs-duty-label-text:#F2CB5C;
+    --fs-name-bg:#1C1C1A; --fs-name-text:#FFFFFF;
+    --fs-duty-bg:#2E2608; --fs-duty-text:#F6D878;
+    --fs-sink-bg:#1C1C1A; --fs-sink-text:#504F47;
+    --fs-card-bg:#1C1C1A; --fs-card-border:#504F47;
+    --fs-title-text:#FFFFFF; --fs-timer-label:#A3A295; --fs-timer-value:#FFFFFF;
+    --fs-empty-text:#86847A; --fs-select-border:#3C3C36;
+    --fs-alert-bg:#3A1915; --fs-alert-text:#FF9088;
+
+    /* on dark, a hairline highlight reads as "raised" better than shadow */
+    --e1:none;
+    --e2:0 1px 0 rgba(0,0,0,.6);
+    --e3:0 8px 28px rgba(0,0,0,.6);
+    --cell-sheen:rgba(255,255,255,.05);
+    --ring:0 0 0 3px rgba(255,90,80,.45);
+  }
+
+  *{box-sizing:border-box;}
+
+  html, body{height:100%;}
+  body{
+    margin:0; font-family:var(--font);
+    background:var(--canvas); color:var(--char);
+    line-height:1.45; font-size:15px;
+  }
+
+  /* visible keyboard focus everywhere */
+  :focus-visible{outline:2px solid var(--c1); outline-offset:2px; border-radius:3px;}
+
+  @media (prefers-reduced-motion: reduce){
+    *{transition:none !important; animation:none !important;}
+  }
+
+  /* App bar */
+  header{
+    background:var(--header-bg); color:var(--band-ink);
+    padding:14px 22px; box-shadow:var(--e2);
+    display:flex; align-items:center; justify-content:space-between;
+    flex-wrap:wrap; gap:12px;
+    position:sticky; top:0; z-index:40;
+  }
+  header h1{
+    margin:0; font-family:var(--font-display);
+    font-size:1.2rem; font-weight:600;
+  }
+  header .sub{font-size:.76rem; color:var(--band-ink-soft); margin-top:1px;}
+  .hbtns{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+
+  /* Buttons */
+  button{
+    font-family:inherit; cursor:pointer; border:none; border-radius:var(--r-sm);
+    padding:8px 14px; font-size:.84rem; font-weight:600;
+    display:inline-flex; align-items:center; justify-content:center; gap:6px;
+    transition:background-color .14s ease, border-color .14s ease,
+               box-shadow .14s ease, transform .08s ease, color .14s ease;
+  }
+  button:active{transform:translateY(1px);}
+  /* Primary action is always the solid poster-red block — the one
+     colour in the page that means "do this now", so it has to read as
+     a button at a glance on both the black app bar and white cards. */
+  .btn-primary{background:var(--c1); color:#fff;}
+  .btn-primary:hover{background:var(--c1-dark);}
+  .btn-secondary{background:var(--surface-sunken); color:var(--char);}
+  .btn-secondary:hover{background:var(--surface-hover);}
+  /* On the black app bar a thin outline alone reads as a label, not a
+     control — give it a visible fill so it reads as a pressable chip. */
+  .btn-outline{background:rgba(255,255,255,.14); color:var(--band-ink); border:1px solid rgba(255,255,255,.4);}
+  .btn-outline:hover{border-color:rgba(255,255,255,.7); background:rgba(255,255,255,.24);}
+  .btn-danger{background:var(--bad); color:#fff;}
+  .btn-danger:hover{filter:brightness(1.08);}
+  /* outline button for use on LIGHT surfaces (the plain .btn-outline is
+     white-on-dark, for the app bar and block headers) */
+  .btn-quiet{background:transparent; color:var(--char); border:1px solid var(--field-border);}
+  .btn-quiet:hover{background:var(--surface-hover); border-color:var(--line-strong);}
+
+  /* Tabs */
+  nav.tabs{
+    display:flex; gap:4px; background:var(--canvas);
+    padding:12px 22px 0; border-bottom:1px solid var(--line);
+  }
+  nav.tabs button{
+    background:transparent; color:var(--muted); border-radius:var(--r-sm) var(--r-sm) 0 0;
+    padding:9px 18px; font-size:.86rem; font-weight:600;
+    border-bottom:2px solid transparent; margin-bottom:-1px;
+  }
+  nav.tabs button:hover{color:var(--char); background:var(--surface-hover);}
+  nav.tabs button.active{
+    background:var(--surface); color:var(--char);
+    border:1px solid var(--line); border-bottom:1px solid var(--surface);
+  }
+
+  main{padding:22px; padding-bottom:64px;}
+  .day-panel{display:none;}
+  .day-panel.active{display:block;}
+
+  /* Block card */
+  .block-card{
+    background:var(--surface); border:1px solid var(--line-strong); border-radius:var(--r-md);
+    margin-bottom:20px; overflow:hidden; box-shadow:var(--e2);
+  }
+  /* Nameplate: a flat white bar. Course colour is never painted onto a
+     <select> itself — browsers reuse a <select>'s own background/text
+     colour to paint its native popup list, so a red/blue select renders
+     a red/blue dropdown list too. Identity here is typographic (bold
+     display face) and the course name is spelled out in the field next
+     to it; bright colour stays reserved for the few small accents
+     (duty tint, sink indicator) and the primary action buttons. */
+  .block-head{
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+    padding:11px 14px; background:var(--surface); color:var(--char);
+    border-bottom:1px solid var(--line);
+  }
+  .block-head input.hdr-field, .block-head select.hdr-field{
+    font-family:inherit; font-size:.86rem; padding:6px 9px;
+    border-radius:var(--r-sm); border:1px solid var(--field-border);
+    background:var(--surface); color:var(--char); min-width:140px;
+  }
+  .block-head select.hdr-field{cursor:pointer;}
+  .block-head select.hdr-field.id-badge-select{
+    font-family:var(--font-display); font-stretch:var(--font-stretch-display);
+    font-weight:700; font-size:.95rem; letter-spacing:.01em;
+    padding:6px 12px; min-width:auto;
+  }
+  .block-actions{margin-left:auto; display:flex; gap:6px; flex-wrap:wrap;}
+  .block-actions button{padding:6px 11px; font-size:.78rem;}
+
+  /* Kitchen grid.
+     Every cell is a DIRECT child of .kitchen-grid, emitted row-major
+     (header row, each seat row, duty row, centre-sink row). Grid's
+     auto-placement lines them into the label + 8 kitchen columns and
+     sizes each row to its tallest cell ACROSS all columns, so duty
+     text wrapping in one kitchen moves that whole row, not just the
+     one column. Seat inputs and seat labels share an explicit equal
+     height so the two never drift apart. */
+  .kitchen-grid{
+    display:grid; grid-template-columns:auto repeat(8,1fr); gap:1px;
+    background:var(--line-strong); border-top:1px solid var(--line-strong);
+  }
+  /* "Not in use" is a deliberate sunken surface, not a greyed-out /
+     half-opacity look — those seats are still real inputs a teacher can
+     type a name into to start a kitchen, so they need to read as quiet
+     and available, not broken or disabled. */
+  .khead.empty{background:var(--surface-sunken); color:var(--muted); font-weight:600;}
+  .khead{
+    font-family:var(--font-display); font-stretch:var(--font-stretch-display);
+    font-size:.86rem; font-weight:700; letter-spacing:.05em;
+    text-align:center; padding:8px 2px;
+    background:var(--band); color:var(--band-ink);
+  }
+  input.seat{
+    box-sizing:border-box; height:46px; border:none;
+    padding:0 4px; font-size:.95rem; margin:0; line-height:normal;
+    width:100%; font-family:inherit; text-align:center;
+    background:var(--surface); color:var(--char); font-weight:600;
+    transition:background-color .12s ease;
+  }
+  input.seat.empty{background:var(--surface-sunken);}
+  input.seat::placeholder{color:var(--placeholder); font-weight:400; font-style:italic;}
+  input.seat:focus{background:var(--c1-tint); outline:2px solid var(--c1); outline-offset:-2px;}
+  /* Unfilled job in a staffed kitchen — shown as a placeholder so the seat is
+     still empty and typing a name over it needs no special handling. */
+  input.seat.split-placeholder::placeholder{color:var(--bad); font-style:italic; font-size:.74rem; font-weight:600; opacity:1;}
+  .seat-label{
+    box-sizing:border-box; height:46px; display:flex; align-items:center; justify-content:flex-end;
+    padding:0 12px; font-size:.82rem; font-weight:600; color:var(--char);
+    background:var(--surface-alt); white-space:nowrap;
+  }
+  .duty.label-row, .centersink.label-row{
+    background:var(--surface-alt); color:var(--muted); font-weight:600;
+    text-align:right; justify-content:flex-end; padding-right:12px;
+  }
+  .duty{
+    font-size:.72rem; padding:8px 5px; text-align:center; color:var(--duty-ink);
+    background:var(--duty-tint); border-top:3px solid var(--duty-line); white-space:pre-line;
+    font-weight:600; display:flex; align-items:center; justify-content:center;
+  }
+  .duty.empty{background:var(--surface-sunken); border-top-color:var(--line); color:var(--muted);}
+  .centersink.empty{background:var(--surface-sunken);}
+  .centersink{
+    font-size:.7rem; padding:6px 4px; text-align:center;
+    background:var(--sink-idle-bg); color:var(--sink-idle-text);
+    display:flex; align-items:center; justify-content:center; min-height:24px;
+  }
+  .centersink.active{
+    background:var(--sink); color:#fff; font-weight:700;
+    box-shadow:inset 0 0 0 2px var(--sink-deep);
+  }
+
+  /* Empty slot */
+  .empty-slot-card{
+    display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
+    padding:18px 20px; background:var(--empty-slot-bg);
+    border:1px dashed var(--line-strong); box-shadow:none;
+  }
+  .empty-slot-label{font-size:.9rem; font-weight:600; color:var(--muted);}
+
+  /* Tables */
+  .duties-panel{max-width:860px; margin-left:auto; margin-right:auto;}
+  .settings-section{margin-bottom:36px;}
+  .settings-section h2{
+    font-family:var(--font-display); font-stretch:var(--font-stretch-display);
+    font-size:1.05rem; font-weight:700; margin:0 0 4px; color:var(--char);
+    padding-bottom:8px; border-bottom:3px solid var(--c1);
+  }
+  .settings-section:nth-of-type(2) h2{border-bottom-color:var(--c2);}
+  .settings-section:nth-of-type(3) h2{border-bottom-color:var(--sink);}
+  table.duty-table{
+    width:100%; border-collapse:separate; border-spacing:0;
+    background:var(--surface); border:1px solid var(--line-strong);
+    border-radius:var(--r-md); overflow:hidden; box-shadow:var(--e2);
+  }
+  table.duty-table th, table.duty-table td{
+    border-bottom:1px solid var(--line); border-right:1px solid var(--line);
+    padding:9px 10px; font-size:.82rem; text-align:center;
+  }
+  table.duty-table th{border-right-color:rgba(255,255,255,.18);}
+  table.duty-table th:last-child, table.duty-table td:last-child{border-right:none;}
+  table.duty-table tr:last-child td{border-bottom:none;}
+  table.duty-table th{
+    background:var(--band); color:var(--band-ink); font-weight:600;
+    font-size:.78rem;
+  }
+  table.duty-table td:first-child, table.duty-table th:first-child{text-align:left; min-width:220px;}
+  table.duty-table input[type=text]{
+    width:100%; border:1px solid var(--line); padding:6px 8px; font-family:inherit;
+    font-size:.84rem; border-radius:var(--r-sm); background:var(--surface); color:var(--char);
+  }
+  table.duty-table input[type=text]:focus{border-color:var(--c1); outline:none; box-shadow:var(--ring);}
+  table.duty-table input[type=checkbox]{width:17px; height:17px; accent-color:var(--c1); cursor:pointer;}
+  .add-duty-row{margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;}
+
+  /* Modal */
+  .modal-bg{
+    position:fixed; inset:0; background:rgba(8,11,15,.55); display:none;
+    align-items:center; justify-content:center; z-index:50;
+  }
+  .modal-bg.show{display:flex;}
+  .modal{
+    background:var(--surface); color:var(--char); border-radius:var(--r-lg);
+    padding:22px 24px; width:min(540px,92vw); max-height:85vh; overflow:auto;
+    box-shadow:var(--e3); border:1px solid var(--line-strong);
+  }
+  .modal h3{margin:0 0 4px; font-family:var(--font-display); font-size:1.1rem; font-weight:600;}
+  .modal textarea{
+    width:100%; min-height:160px; font-family:inherit; font-size:.85rem; padding:10px;
+    border:1px solid var(--line); border-radius:var(--r-sm);
+    background:var(--surface); color:var(--char); resize:vertical;
+  }
+  .modal textarea:focus{border-color:var(--c1); outline:none; box-shadow:var(--ring);}
+  .modal input[type=file]{font-family:inherit; font-size:.82rem; color:var(--char);}
+  .modal .modal-btns{display:flex; justify-content:flex-end; gap:8px; margin-top:16px;}
+  .hint{font-size:.79rem; color:var(--muted); margin-top:6px; line-height:1.5; max-width:68ch;}
+
+  /* Toast */
+  .toast{
+    position:fixed; bottom:20px; right:20px; background:var(--band); color:var(--band-ink);
+    padding:11px 16px; border-radius:var(--r-md); font-size:.85rem; box-shadow:var(--e3);
+    opacity:0; transform:translateY(8px); z-index:99; max-width:340px;
+    transition:opacity .2s ease, transform .2s ease;
+    pointer-events:none;
+  }
+  .toast.show{opacity:1; transform:translateY(0);}
+
+
+  /* Dropdown menu */
+  .menu-trigger{font-size:1rem; padding:6px 10px; line-height:1;}
+  .dropdown-menu{
+    position:fixed; display:none; background:var(--surface);
+    border:1px solid var(--line); border-radius:var(--r-md);
+    box-shadow:var(--e3); min-width:210px; z-index:150; overflow:hidden; padding:4px;
+    border-color:var(--line-strong);
+  }
+  .dropdown-menu.show{display:block;}
+  .dropdown-menu button{
+    display:flex; width:100%; text-align:left; justify-content:flex-start;
+    background:transparent; color:var(--char);
+    padding:9px 12px; font-weight:500; font-size:.85rem; border-radius:var(--r-sm);
+  }
+  .dropdown-menu button:hover{background:var(--surface-hover);}
+
+  /* Fullscreen board.
+     Height constraint chain: every level from the fixed overlay down
+     to .fs-grid must be a shrinkable flex item (flex + min-height:0),
+     or the 100vh bound never reaches the grid and it grows past the
+     screen. Font sizes here are set by the JS fitter, so never give
+     these elements a font-size transition or measurements get taken
+     mid-animation. */
+  .fs-overlay{
+    position:fixed; inset:0; background:var(--fs-bg); z-index:200; display:none;
+    overflow:hidden;
+  }
+  .fs-overlay.show{display:flex;}
+  #fsScaleWrap{
+    box-sizing:border-box; padding:14px 18px 16px;
+    width:100vw; height:100vh;
+    display:flex; flex-direction:column; min-height:0;
+  }
+  #fsContent{
+    flex:1 1 auto; min-height:0;
+    display:flex; flex-direction:column; width:100%;
+  }
+  .fs-header{
+    display:grid; grid-template-columns:1fr auto 1fr; align-items:center;
+    gap:16px; margin-bottom:12px; flex:0 0 auto;
+  }
+  .fs-label{
+    justify-self:start;
+    font-family:var(--font-display);
+    font-size:clamp(1.4rem, 2.1vw, 2.2rem);
+    display:flex; align-items:baseline; gap:.55em;
+  }
+  .fs-label-id{font-family:var(--font-display); font-stretch:var(--font-stretch-display); font-weight:700; letter-spacing:.03em; color:var(--fs-title-text);}
+  .fs-label-class{font-weight:400; color:var(--fs-timer-label);}
+  .fs-date{
+    justify-self:center;
+    font-family:var(--font-display); font-stretch:var(--font-stretch-display);
+    font-size:clamp(1.4rem, 2.1vw, 2.2rem); font-weight:700;
+    letter-spacing:.03em; color:var(--fs-title-text); white-space:nowrap;
+  }
+  .fs-header-controls{justify-self:end; display:flex; align-items:center; gap:16px; flex-wrap:wrap;}
+  .fs-schedule-picker select{
+    font-family:inherit; font-size:.9rem; padding:7px 10px; border-radius:var(--r-sm);
+    border:1px solid var(--fs-select-border); background:var(--fs-card-bg); color:var(--fs-title-text);
+  }
+  .fs-header .btn-outline{
+    color:var(--fs-title-text); border-color:var(--fs-select-border);
+    padding:8px 16px; font-size:.88rem;
+  }
+  .fs-header .btn-outline:hover{background:rgba(127,127,127,.14); border-color:var(--fs-title-text);}
+
+  .fs-timers{display:flex; gap:12px; flex-wrap:nowrap; margin-bottom:10px; flex:0 0 auto;}
+  .fs-timer-card{
+    flex:1 1 0; min-width:0; background:var(--fs-card-bg);
+    border:2px solid var(--fs-card-border); border-radius:var(--r-md);
+    padding:8px 16px; text-align:center; box-shadow:var(--e1);
+  }
+  .fs-timer-label{
+    font-size:clamp(.8rem, .95vw, 1.1rem); color:var(--fs-timer-label);
+    font-weight:600; margin-bottom:2px;
+  }
+  .fs-timer-value{
+    font-family:var(--font-display); font-stretch:var(--font-stretch-display);
+    font-size:clamp(1.8rem, 3vw, 3rem); font-weight:700; color:var(--fs-timer-value);
+    font-variant-numeric:tabular-nums; line-height:1.1;
+  }
+  .fs-timer-card.fs-alert{border-color:var(--bad); background:var(--fs-alert-bg);}
+  .fs-timer-card.fs-alert .fs-timer-value,
+  .fs-timer-card.fs-alert .fs-timer-label{color:var(--fs-alert-text);}
+  .fs-timer-card.fs-over{opacity:.55;}
+  .fs-timer-card.fs-na{flex:1 1 100%; padding:14px; font-size:.95rem; color:var(--fs-timer-label);}
+
+  /* Shared-label grid: job titles appear ONCE down the left column so
+     each kitchen column spends its whole width on the student's name.
+     grid-template-columns/rows are set inline per render because the
+     kitchen count and the number of used job rows vary by day. */
+  .fs-grid{
+    display:grid; gap:3px; background:var(--fs-line);
+    border:3px solid var(--fs-line); border-radius:var(--r-md);
+    overflow:hidden; width:100%; flex:1 1 auto; min-height:0;
+    box-shadow:var(--e2);
+  }
+  .fs-ghead{
+    background:var(--fs-head-bg); color:var(--fs-head-text);
+    font-family:var(--font-display); font-stretch:var(--font-stretch-display);
+    font-weight:700; text-align:center; letter-spacing:.04em;
+    padding:4px 8px; white-space:nowrap; overflow:hidden;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .fs-glabel{
+    background:var(--fs-label-bg); color:var(--fs-label-text);
+    font-family:var(--font-display); font-stretch:var(--font-stretch-display);
+    font-weight:600; letter-spacing:.015em;
+    white-space:nowrap; padding:4px 16px; overflow:hidden;
+    display:flex; align-items:center; justify-content:flex-start;
+  }
+  .fs-glabel.fs-glabel-duty{color:var(--fs-duty-label-text);}
+  .fs-gname{
+    background:var(--fs-name-bg); color:var(--fs-name-text);
+    font-family:var(--font-display); font-stretch:var(--font-stretch-display);
+    font-weight:600; white-space:nowrap; letter-spacing:.005em;
+    text-align:center; padding:2px 6px; overflow:hidden; min-width:0;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:inset 0 1px 0 var(--cell-sheen);
+  }
+  /* Unfilled job in the projector view: same cell as a name, but italic and in
+     the warning colour so the kitchen reads it as "this one is on all of us". */
+  .fs-gsplit{
+    background:var(--fs-name-bg); color:var(--bad);
+    font-family:var(--font-display); font-stretch:var(--font-stretch-display);
+    font-weight:600; font-style:italic; white-space:nowrap; letter-spacing:.06em;
+    text-align:center; padding:2px 6px; overflow:hidden; min-width:0;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:inset 0 1px 0 var(--cell-sheen);
+  }
+  .fs-glabel.fs-glabel-split{color:var(--fs-empty-text); font-style:italic;}
+  .fs-gduty{
+    background:var(--fs-duty-bg); color:var(--fs-duty-text);
+    font-family:var(--font-display); font-stretch:var(--font-stretch-display);
+    font-weight:600; white-space:pre-line;
+    line-height:1.25; text-align:center; padding:4px 8px; overflow:hidden; min-width:0;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .fs-gsink{
+    background:var(--fs-sink-bg); color:var(--fs-sink-text);
+    font-family:var(--font-display); font-stretch:var(--font-stretch-display);
+    font-weight:600; letter-spacing:.02em;
+    text-align:center; padding:4px;
+    overflow:hidden; display:flex; align-items:center; justify-content:center;
+  }
+  .fs-gsink.active{background:var(--sink); color:#fff;}
+  .fs-icon, .icon{width:1em; height:1em; vertical-align:-0.15em; margin-right:6px; flex:0 0 auto;}
+  .icon-solo{margin-right:0;}
+  .fs-empty{color:var(--fs-empty-text); font-size:1.1rem;}
