@@ -25,18 +25,6 @@ const STORAGE_KEY = 'kitchenRotationTool_v1';
 
 function emptyKitchen(){ return { students: [], original: [] }; }
 
-const DEFAULT_DUTIES = [
-  { text:'Sweep Around/Behind Supply Table Area', apply:{A1:true,A2:true,A3:true,B1:true,B2:true,B3:true} },
-  { text:'Sweep Under/Around Your Kitchen Table', apply:{A1:true,A2:true,A3:true,B1:true,B2:true,B3:true} },
-  { text:'Clean/Sanitize Fridge & Freezer Doors/Handles', apply:{A1:true,A2:true,A3:true,B1:true,B2:true,B3:true} },
-  { text:'Rotate or Start Laundry', apply:{A1:false,A2:false,A3:false,B1:false,B2:false,B3:false} },
-  { text:'Sweep & Mop Between Kitchens & Under Drying Shelves', apply:{A1:true,A2:true,A3:true,B1:true,B2:true,B3:true} },
-  { text:'Wipe Your Kitchen Walls with Cleaner', apply:{A1:true,A2:true,A3:true,B1:true,B2:true,B3:true} },
-  { text:'Clean/Sanitize Supply Table', apply:{A1:true,A2:true,A3:true,B1:true,B2:true,B3:true} },
-  { text:'Clean/Sanitize All Horizontal Surfaces in Your Kitchen', apply:{A1:true,A2:true,A3:true,B1:true,B2:true,B3:true} },
-  { text:'Clean Teacher Dishes / Put Teacher Dishes Away', apply:{A1:true,A2:true,A3:true,B1:true,B2:true,B3:true} },
-  { text:'Clean Handwashing Sink with Cleaner and Sanitizer & Mop Underneath Handwashing Sink', apply:{A1:true,A2:true,A3:true,B1:true,B2:true,B3:true} }
-];
 
 function blankBlock(day, course){
   return {
@@ -53,7 +41,7 @@ const OLD_DEFAULT_JOB_TITLES = ['Head Chef', 'Sous Chef', 'Prep Cook', 'Dishwash
 function freshState(){
   const blocks = {};
   INITIAL_BLOCKS.forEach(b=>{ blocks[b.id] = blankBlock(b.day, b.course); });
-  const duties = DEFAULT_DUTIES.map(d => ({ text:d.text, apply:{...d.apply} }));
+  const duties = [];   // no standard list; duties are whatever the teacher adds
   return {
     blocks, duties,
     jobTitles: [...DEFAULT_JOB_TITLES],
@@ -79,7 +67,7 @@ function normalizeState(parsed){
     });
     return {
       blocks,
-      duties: Array.isArray(parsed.duties) ? parsed.duties : DEFAULT_DUTIES.map(d=>({text:d.text,apply:{...d.apply}})),
+      duties: Array.isArray(parsed.duties) ? parsed.duties : [],
       jobTitles: Array.isArray(parsed.jobTitles) && parsed.jobTitles.length===5
         ? (JSON.stringify(parsed.jobTitles) === JSON.stringify(OLD_DEFAULT_JOB_TITLES) ? [...DEFAULT_JOB_TITLES] : parsed.jobTitles)
         : [...DEFAULT_JOB_TITLES],
@@ -249,33 +237,117 @@ function dutiesForBlock(blockId){
   return state.duties.filter(d => d.apply[blockId]).map(d=>d.text);
 }
 
+// The blocks of one day, in the order they actually run. A block that has been
+// pulled out of the day's slots is appended so it still gets an assignment.
+function dayBlockOrder(day, ensureId){
+  const ids = (state.slots[day] || []).filter(Boolean);
+  if(ensureId && !ids.includes(ensureId)) ids.push(ensureId);
+  return ids;
+}
+
+// Extra duties are assigned for a WHOLE DAY at once, not block by block.
+//
+// A kitchen index is a physical station: K3 in first period is the same
+// counter and the same shelves as K3 in third period, with a different class
+// standing at it. Wiping those shelves a second time is wasted work, so one
+// physical kitchen must not draw the same duty twice in a day.
+//
+// Per-block rotation cannot promise that on its own. rotateDay() advances
+// every block on the day together, and blocks that share a duty pool start
+// equal, so they stay equal forever — K3 drew the IDENTICAL duty in every
+// period, every rotation. Offsetting each block by its position in the day
+// breaks the lockstep (consecutive periods land on consecutive duties), and
+// the scan below repairs what arithmetic alone cannot: blocks whose duty pools
+// differ, where equal offsets can still collide.
+function assignDayDuties(day, ensureId){
+  const usedByKitchen = new Map();  // physical kitchen idx -> duties drawn today, in order
+  const byBlock = {};
+
+  dayBlockOrder(day, ensureId).forEach((id, pos)=>{
+    const block = state.blocks[id];
+    const out = {};
+    byBlock[id] = out;
+    if(!block) return;
+
+    const pool = dutiesForBlock(id);
+    const takenHere = new Set();    // keeps two kitchens in the SAME block apart
+
+    activeKitchenIdxs(block).forEach((ki, seat)=>{
+      if(pool.length === 0){ out[ki] = ''; return; }
+      const used = usedByKitchen.get(ki) || [];
+      // Where rotation alone would put this kitchen, shifted by the block's
+      // position in the day. Counting by SEAT (position among the staffed
+      // kitchens) rather than by kitchen number keeps the duties handed out in
+      // one block consecutive in the pool: staffing only K5 and K7 would
+      // otherwise index 4 and 6 and silently skip whatever sits at 5.
+      const start = (block.dutyIndex + seat + pos) % pool.length;
+
+      let pick = null;
+      // Best: new to this kitchen today, and unclaimed in this block.
+      for(let i=0; i<pool.length && pick===null; i++){
+        const cand = pool[(start+i) % pool.length];
+        if(!used.includes(cand) && !takenHere.has(cand)) pick = cand;
+      }
+      // Next best: new to this kitchen today, even if another kitchen in this
+      // block already has it. Two kitchens sharing a duty is just a small pool
+      // showing through; the same kitchen repeating one is the actual waste.
+      for(let i=0; i<pool.length && pick===null; i++){
+        const cand = pool[(start+i) % pool.length];
+        if(!used.includes(cand)) pick = cand;
+      }
+      // Last resort: this kitchen has already done every duty in its pool
+      // today, so repeat whichever one it did longest ago.
+      if(pick === null){
+        pick = pool.reduce((best, cand)=>
+          used.lastIndexOf(cand) < used.lastIndexOf(best) ? cand : best);
+      }
+
+      out[ki] = pick;
+      takenHere.add(pick);
+      usedByKitchen.set(ki, used.concat(pick));
+    });
+  });
+  return byBlock;
+}
+
 function refreshDuties(blockId, increment){
   const block = state.blocks[blockId];
+  if(!block) return;
   const active = activeKitchenIdxs(block);
-  const dutyTextByKitchen = {};
-  const centerSinkByKitchen = {};
 
-  if(active.length > 0){
+  if(increment && active.length > 0){
     const pool = dutiesForBlock(blockId);
-    let rotated = [];
-    if(pool.length > 0){
-      if(increment) block.dutyIndex = (block.dutyIndex + 1) % pool.length;
-      rotated = pool.slice();
-      while(rotated.length < active.length) rotated.push(...pool);
-      for(let i=0;i<block.dutyIndex;i++) rotated.push(rotated.shift());
-    }
-
-    if(increment) block.centerSink = block.centerSink === 0 ? 1 : 0;
-    const wantOdd = block.centerSink === 0;
-    const centerSinkSet = new Set(active.filter(idx => (((idx+1)%2===1) === wantOdd)));
-
-    active.forEach((ki,i)=>{
-      dutyTextByKitchen[ki] = rotated.length>0 ? rotated[i % rotated.length] : '';
-      centerSinkByKitchen[ki] = centerSinkSet.has(ki);
-    });
+    if(pool.length > 0) block.dutyIndex = (block.dutyIndex + 1) % pool.length;
+    block.centerSink = block.centerSink === 0 ? 1 : 0;
   }
-  block._dutyDisplay = dutyTextByKitchen;
+
+  // Center sink stays a per-block alternation rather than a day-wide rule:
+  // unlike wiping a shelf, the dishes at a station refill every period, so
+  // washing again the same day is not redundant work.
+  //
+  // Kitchens share a sink in fixed physical pairs — K1/K2, K3/K4, K5/K6,
+  // K7/K8 — and a staffed pair takes turns, one kitchen each rotation. A
+  // kitchen whose partner has no students has nobody to take the other turn,
+  // so it keeps its sink EVERY rotation. Alternating blindly by kitchen number
+  // left those sinks unwashed: staffing only K5 and K7 (both odd) means every
+  // even turn picks two empty stations, and the pair sinks go dirty.
+  const centerSinkByKitchen = {};
+  const staffed = new Set(active);
+  const wantOdd = block.centerSink === 0;
+  active.forEach(ki=>{
+    centerSinkByKitchen[ki] = staffed.has(ki ^ 1)   // ^1 pairs 0-1, 2-3, 4-5, 6-7
+      ? (((ki+1)%2===1) === wantOdd)
+      : true;
+  });
   block._centerSinkDisplay = centerSinkByKitchen;
+
+  // One kitchen's duty depends on what that same kitchen drew in the day's
+  // other blocks, so the whole day is assigned together and every block on it
+  // has its display refreshed here.
+  const assignment = assignDayDuties(block.day, blockId);
+  Object.keys(assignment).forEach(id=>{
+    if(state.blocks[id]) state.blocks[id]._dutyDisplay = assignment[id];
+  });
 }
 
 // Import
@@ -426,17 +498,6 @@ function confirmImport(){
 }
 
 // Duty list management
-function loadDefaultDuties(){
-  if(state.duties.length > 0){
-    const ok = confirm('This replaces your current duty list with the standard 10-duty list. Continue?');
-    if(!ok) return;
-  }
-  state.duties = DEFAULT_DUTIES.map(d => ({ text:d.text, apply:{...d.apply} }));
-  saveState();
-  renderDutyTable();
-  showToast('Standard duty list loaded.');
-}
-
 function addDuty(){
   state.duties.push({ text:'New duty', apply: Object.fromEntries(allBlockIds().map(id=>[id,false])) });
   saveState();
@@ -537,7 +598,7 @@ function refreshBlockChrome(blockId){
     const hasSink = !!(block._centerSinkDisplay && block._centerSinkDisplay[ki]);
     el.classList.toggle('empty', !active.includes(ki));
     el.classList.toggle('active', hasSink);
-    el.innerHTML = hasSink ? ICON_DROPLET + ' Center sink' : '';
+    el.innerHTML = hasSink ? ICON_DROPLET + ' Center Sink' : '';
   });
 }
 
@@ -603,7 +664,7 @@ function renderDayPanel(day){
 
     // Duty row — tallest cell in this row (e.g. a long wrapped duty) now
     // sets the height for the WHOLE row, so every kitchen's row stays level.
-    html += `<div class="duty label-row">Extra duty</div>`;
+    html += `<div class="duty label-row">Extra Duty</div>`;
     for(let ki=0; ki<NUM_KITCHENS; ki++){
       const isEmpty = !active.includes(ki);
       const dutyText = (block._dutyDisplay && block._dutyDisplay[ki]) || '';
@@ -611,11 +672,11 @@ function renderDayPanel(day){
     }
 
     // Center Sink row — same fix applies here, which is what was drifting.
-    html += `<div class="centersink label-row">Center sink</div>`;
+    html += `<div class="centersink label-row">Center Sink</div>`;
     for(let ki=0; ki<NUM_KITCHENS; ki++){
       const isEmpty = !active.includes(ki);
       const hasSink = !!(block._centerSinkDisplay && block._centerSinkDisplay[ki]);
-      html += `<div class="centersink ${hasSink?'active':''} ${isEmpty?'empty':''}" data-k="${ki}">${hasSink ? ICON_DROPLET+' Center sink' : ''}</div>`;
+      html += `<div class="centersink ${hasSink?'active':''} ${isEmpty?'empty':''}" data-k="${ki}">${hasSink ? ICON_DROPLET+' Center Sink' : ''}</div>`;
     }
 
     html += `</div></div>`;
@@ -940,16 +1001,16 @@ function renderFullscreen(){
       });
     }
 
-    gridHtml += `<div class="fs-glabel fs-glabel-duty">Extra duty</div>`;
+    gridHtml += `<div class="fs-glabel fs-glabel-duty">Extra Duty</div>`;
     active.forEach(ki=>{
       const dutyText = (block._dutyDisplay && block._dutyDisplay[ki]) || '';
       gridHtml += `<div class="fs-gduty">${dutyText ? escapeHtml(dutyText) : 'None'}</div>`;
     });
 
-    gridHtml += `<div class="fs-glabel">Center sink</div>`;
+    gridHtml += `<div class="fs-glabel">Center Sink</div>`;
     active.forEach(ki=>{
       const hasSink = !!(block._centerSinkDisplay && block._centerSinkDisplay[ki]);
-      gridHtml += `<div class="fs-gsink ${hasSink?'active':''}">${hasSink ? ICON_DROPLET+' Center sink' : ''}</div>`;
+      gridHtml += `<div class="fs-gsink ${hasSink?'active':''}">${hasSink ? ICON_DROPLET+' Center Sink' : ''}</div>`;
     });
 
     gridHtml += `</div>`;

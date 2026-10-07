@@ -26,7 +26,7 @@
 <header>
   <div>
     <h1>Kitchen Rotation Tool</h1>
-    <div class="sub">Runs in this browser only. Nothing leaves this computer.</div>
+    <div class="sub">Rotates students through kitchen seats, jobs, and duties.</div>
   </div>
   <div class="hbtns">
     <button class="btn-primary" id="rotateBtn" onclick="rotateCurrentDay()">Rotate A Day</button>
@@ -47,21 +47,20 @@
   <div id="panel-settings" class="day-panel duties-panel">
     <section class="settings-section">
       <h2>Extra duties</h2>
-      <p class="hint">Tick the blocks each duty applies to. Duties move one kitchen along every time that block advances.</p>
+      <p class="hint">Tick the blocks each duty applies to. Duties move one kitchen per rotation. A kitchen never repeats a duty within a day, since the next period works the same station.</p>
       <table class="duty-table" id="dutyTable"></table>
       <div class="add-duty-row">
         <button class="btn-secondary" onclick="addDuty()">Add duty</button>
-        <button class="btn-quiet" onclick="loadDefaultDuties()">Load standard duty list</button>
       </div>
     </section>
     <section class="settings-section">
       <h2>Job titles</h2>
-      <p class="hint">Job titles belong to the seat, not the student. Whoever rotates into the first seat holds the first job that day. A kitchen of 3 uses only the first 3 titles; the jobs below that read SPLIT, meaning the whole kitchen shares that work.</p>
+      <p class="hint">Titles belong to the seat, not the student. A kitchen smaller than this list shows SPLIT for the leftover jobs, which the whole kitchen shares.</p>
       <table class="duty-table" id="jobTitleTable"></table>
     </section>
     <section class="settings-section">
       <h2>Backup &amp; restore</h2>
-      <p class="hint">Everything lives only in this browser. Download a backup file now and then, especially before a big roster change — it's the only way to recover if this browser's storage is ever cleared.</p>
+      <p class="hint">Data lives only in this browser. A backup file is the only way to recover it if this browser&rsquo;s storage is cleared.</p>
       <div class="add-duty-row">
         <button class="btn-secondary" onclick="downloadBackup()">Download backup</button>
         <button class="btn-quiet" onclick="document.getElementById('restoreFile').click()">Load backup</button>
