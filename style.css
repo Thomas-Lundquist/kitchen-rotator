@@ -43,6 +43,10 @@
     --duty-tint:#FCEEC4; --duty-line:#F0B000; --duty-ink:#6B4B00;
     --sink:#1E8A4C; --sink-deep:#145C32;
     --bad:#DA2824; --good:#1E8A4C;
+    --c3:#8A5A00;            /* fourth section accent — participation records */
+    /* Absent veil: sits over the whole board cell, so it must dim the name
+       underneath without hiding it. */
+    --fs-away-veil:rgba(255,255,255,.62); --fs-away-ink:#131210;
 
     --sink-idle-bg:#F6F6F1; --sink-idle-text:#B7B7A9;
     --empty-slot-bg:#F6F6F1;
@@ -94,6 +98,8 @@
     --duty-tint:#2E2608; --duty-line:#F0B000; --duty-ink:#F2CB5C;
     --sink:#3FB771; --sink-deep:#1E8A4C;
     --bad:#FF6B61; --good:#3FB771;
+    --c3:#E0A33A;
+    --fs-away-veil:rgba(17,17,17,.66); --fs-away-ink:#FFFFFF;
 
     --sink-idle-bg:#1C1C1A; --sink-idle-text:#504F47;
     --empty-slot-bg:#151513;
@@ -262,6 +268,14 @@
   /* Unfilled job in a staffed kitchen — shown as a placeholder so the seat is
      still empty and typing a name over it needs no special handling. */
   input.seat.split-placeholder::placeholder{color:var(--bad); font-style:italic; font-size:.74rem; font-weight:600; opacity:1;}
+  /* Out today. Seats are <input> elements, so there is no child to overlay the
+     way the projector view does — the field itself has to carry the signal. */
+  input.seat.away{
+    color:var(--muted); text-decoration:line-through; text-decoration-thickness:2px;
+    background:repeating-linear-gradient(135deg,
+      var(--surface-sunken) 0 7px, var(--surface) 7px 14px);
+  }
+  input.seat.away:focus{background:var(--c1-tint);}
   .seat-label{
     box-sizing:border-box; height:46px; display:flex; align-items:center; justify-content:flex-end;
     padding:0 12px; font-size:.82rem; font-weight:600; color:var(--char);
@@ -304,8 +318,53 @@
     font-size:1.05rem; font-weight:700; margin:0 0 4px; color:var(--char);
     padding-bottom:8px; border-bottom:3px solid var(--c1);
   }
-  .settings-section:nth-of-type(2) h2{border-bottom-color:var(--c2);}
-  .settings-section:nth-of-type(3) h2{border-bottom-color:var(--sink);}
+  /* Keyed by id, not by position. These used to be :nth-of-type(2)/(3), which
+     meant inserting a section silently renumbered the ones after it and left
+     the last with no rule at all, falling back to the first section's accent. */
+  #section-duties  h2{border-bottom-color:var(--c1);}
+  #section-titles  h2{border-bottom-color:var(--c2);}
+  #section-history h2{border-bottom-color:var(--c3);}
+  #section-backup  h2{border-bottom-color:var(--sink);}
+
+  /* Attendance modal */
+  .att-row{display:grid; grid-template-columns:40px 1fr; gap:10px; align-items:start; margin-top:10px;}
+  .att-khead{
+    font-family:var(--font-display); font-stretch:var(--font-stretch-display);
+    font-weight:700; font-size:.86rem; color:var(--muted); padding-top:7px;
+  }
+  .att-chips{display:flex; flex-wrap:wrap; gap:6px;}
+  .att-chip{
+    padding:6px 11px; border-radius:var(--r-sm); border:1px solid var(--line-strong);
+    background:var(--surface); color:var(--char); font-family:inherit;
+    font-weight:600; font-size:.85rem; cursor:pointer;
+  }
+  .att-chip:hover{border-color:var(--char);}
+  .att-chip.away{
+    background:var(--c1-tint); border-color:var(--bad); color:var(--bad);
+    text-decoration:line-through; text-decoration-thickness:2px;
+  }
+
+  /* Rotation history */
+  .hist-list{max-height:52vh; overflow-y:auto; margin-top:10px;}
+  .hist-entry{border-top:1px solid var(--line); padding:10px 0;}
+  .hist-entry:first-child{border-top:none;}
+  .hist-date{
+    font-family:var(--font-display); font-stretch:var(--font-stretch-display);
+    font-weight:700; font-size:.92rem; color:var(--char); margin-bottom:4px;
+    display:flex; align-items:center; gap:10px;
+  }
+  .hist-k{font-size:.82rem; color:var(--char); line-height:1.55; padding-left:2px;}
+  .hist-k b{font-weight:700;}
+  .hist-duty{color:var(--c3); font-weight:600;}
+  .hist-sink{color:var(--sink); font-weight:600;}
+  .hist-absent{color:var(--bad); font-style:italic;}
+  .hist-filter{display:flex; gap:6px; margin-top:4px;}
+  .hist-filter button{
+    padding:4px 10px; border-radius:var(--r-sm); border:1px solid var(--line-strong);
+    background:var(--surface); color:var(--muted); font-family:inherit;
+    font-weight:600; font-size:.78rem; cursor:pointer;
+  }
+  .hist-filter button.on{background:var(--c3); border-color:var(--c3); color:#fff;}
   table.duty-table{
     width:100%; border-collapse:separate; border-spacing:0;
     background:var(--surface); border:1px solid var(--line-strong);
@@ -483,7 +542,41 @@
     text-align:center; padding:2px 6px; overflow:hidden; min-width:0;
     display:flex; align-items:center; justify-content:center;
     box-shadow:inset 0 1px 0 var(--cell-sheen);
+    position:relative;   /* anchors the absent veil below */
   }
+
+  /* Out today. The name keeps its full fitted size and the veil lies over the
+     whole cell, so the grid loses no height to saying so. */
+  .fs-gaway{ box-shadow:inset 0 0 0 3px var(--bad), inset 0 1px 0 var(--cell-sheen); }
+  .fs-away-veil{
+    position:absolute; inset:0; pointer-events:none;
+    /* LOAD-BEARING, not cosmetic. fitJobRows() sizes every name on the board by
+       comparing scrollWidth/scrollHeight against clientWidth/clientHeight. An
+       element with overflow:hidden clips its own scroll overflow instead of
+       passing it up, so without this line a long ABSENT/SPLIT veil would leak
+       into .fs-gname's scrollWidth and the fitter would shrink EVERY name on
+       the screen the moment anyone was marked out. inset:0 resolves against the
+       padding box, which is exactly clientWidth x clientHeight, so the veil
+       contributes nothing on its own. */
+    overflow:hidden;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:var(--fs-away-veil);
+    font-family:var(--font-display); font-stretch:var(--font-stretch-display);
+    /* Sized in em, so it tracks whatever size the fitter settled on for the
+       names and stays legible from the back of the room. Safe precisely
+       BECAUSE of the overflow:hidden above: the fitter rewrites .fs-gname's
+       font-size dozens of times per pass and this follows along, but the veil
+       is never itself measured and can never report overflow upward. The px
+       bounds stop it vanishing in a half-height row or running away in a
+       near-empty kitchen. */
+    font-size:clamp(11px, .5em, 58px); line-height:1.02; font-weight:700;
+    letter-spacing:.1em; text-align:center;
+  }
+  .fs-away-veil b{ color:var(--fs-away-ink); font-weight:800; }
+  .fs-away-veil i{ color:var(--bad); font-size:.8em; letter-spacing:.08em; font-style:italic; }
+
+  /* A kitchen with nobody in today draws no duty at all. */
+  .fs-gduty.fs-gduty-out{ opacity:.25; }
   /* Unfilled job in the projector view: same cell as a name, but italic and in
      the warning colour so the kitchen reads it as "this one is on all of us". */
   .fs-gsplit{

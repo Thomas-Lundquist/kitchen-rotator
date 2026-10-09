@@ -30,6 +30,7 @@
   </div>
   <div class="hbtns">
     <button class="btn-primary" id="rotateBtn" onclick="rotateCurrentDay()">Rotate A Day</button>
+    <button class="btn-outline" id="undoBtn" onclick="undoLastRotation()" style="display:none">Undo</button>
     <button class="btn-outline" id="themeToggle" onclick="toggleTheme()">Dark</button>
     <button class="btn-outline" id="tab-settings" onclick="switchTab('settings')">Settings</button>
     <input type="file" id="restoreFile" accept=".json" style="display:none" onchange="loadBackupFile(this)">
@@ -45,7 +46,7 @@
   <div id="panel-A" class="day-panel active"></div>
   <div id="panel-B" class="day-panel"></div>
   <div id="panel-settings" class="day-panel duties-panel">
-    <section class="settings-section">
+    <section class="settings-section" id="section-duties">
       <h2>Extra duties</h2>
       <p class="hint">Tick the blocks each duty applies to. Duties move one kitchen per rotation. A kitchen never repeats a duty within a day, since the next period works the same station.</p>
       <table class="duty-table" id="dutyTable"></table>
@@ -53,12 +54,21 @@
         <button class="btn-secondary" onclick="addDuty()">Add duty</button>
       </div>
     </section>
-    <section class="settings-section">
+    <section class="settings-section" id="section-titles">
       <h2>Job titles</h2>
       <p class="hint">Titles belong to the seat, not the student. A kitchen smaller than this list shows SPLIT for the leftover jobs, which the whole kitchen shares.</p>
       <table class="duty-table" id="jobTitleTable"></table>
     </section>
-    <section class="settings-section">
+    <section class="settings-section" id="section-history">
+      <h2>Participation records</h2>
+      <p class="hint">Each rotation records what the class just finished &mdash; so rotate at the end of a session, not the start. The last 90 rotations per class are kept; older ones drop off. Open a class&rsquo;s kebab menu to see its history.</p>
+      <div id="historySummary"></div>
+      <div class="add-duty-row">
+        <button class="btn-secondary" onclick="exportParticipationCSV()">Export participation CSV</button>
+        <button class="btn-quiet" onclick="clearAllHistory()">Clear history</button>
+      </div>
+    </section>
+    <section class="settings-section" id="section-backup">
       <h2>Backup &amp; restore</h2>
       <p class="hint">Data lives only in this browser. A backup file is the only way to recover it if this browser&rsquo;s storage is cleared.</p>
       <div class="add-duty-row">
@@ -78,6 +88,33 @@
     <div class="modal-btns">
       <button class="btn-quiet" onclick="closeImportModal()">Cancel</button>
       <button class="btn-primary" onclick="confirmImport()">Import</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="absenceModalBg">
+  <div class="modal">
+    <h3 id="absenceModalTitle">Attendance</h3>
+    <p class="hint">Click a student to mark them out for today. Whoever is present takes the top job titles, and an absent student&rsquo;s job reads SPLIT on the board. The roster and the rotation are untouched &mdash; the next rotation picks up exactly where it would have. Marks clear on the next rotation, or overnight.</p>
+    <div id="absenceBody"></div>
+    <div class="modal-btns">
+      <button class="btn-quiet" onclick="clearBlockAbsences()">Mark all present</button>
+      <button class="btn-primary" onclick="closeAbsenceModal()">Done</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="historyModalBg">
+  <div class="modal">
+    <h3 id="historyModalTitle">Rotation history</h3>
+    <div class="hist-filter">
+      <button id="histAll" class="on" onclick="setHistoryFilter('all')">All</button>
+      <button id="histWeek" onclick="setHistoryFilter('week')">This week</button>
+    </div>
+    <div class="hist-list" id="historyBody"></div>
+    <div class="modal-btns">
+      <button class="btn-quiet" onclick="exportParticipationCSV(historyTargetBlock)">Export this class</button>
+      <button class="btn-primary" onclick="closeHistoryModal()">Done</button>
     </div>
   </div>
 </div>

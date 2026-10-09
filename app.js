@@ -31,7 +31,14 @@ function blankBlock(day, course){
     day, course,
     className: course===2 ? 'Culinary 2' : 'Culinary 1',
     kitchens: Array.from({length:NUM_KITCHENS}, emptyKitchen),
-    dutyIndex: 0, centerSink: 0
+    dutyIndex: 0, centerSink: 0,
+    // Who is out today, indexed [kitchen][stored seat]. A BLOCK field rather
+    // than a kitchen one on purpose: normalizeState merges a saved block over a
+    // fresh one shallowly, so a saved kitchens array replaces the fresh one
+    // whole and a field added inside emptyKitchen() would be undefined on every
+    // existing save. A new block field inherits its default for free.
+    absent: Array.from({length:NUM_KITCHENS}, ()=>Array(MAX_KITCHEN).fill(false)),
+    absentDate: ''
   };
 }
 
@@ -62,7 +69,14 @@ function normalizeState(parsed){
     const blocks = {};
     ['A','B'].forEach(day=>{
       (parsed.slots[day]||[]).forEach(id=>{
-        if(id) blocks[id] = Object.assign(blankBlock(day, 1), parsed.blocks[id] || {});
+        if(id){
+          blocks[id] = Object.assign(blankBlock(day, 1), parsed.blocks[id] || {});
+          // A save written before attendance existed has no grid; one that was
+          // hand-edited or truncated may have a short one. Repair here so no
+          // render path has to cope with a ragged array.
+          absentGrid(blocks[id]);
+          expireAbsences(blocks[id]);
+        }
       });
     });
     return {
@@ -135,11 +149,17 @@ function loadState(){
 
 
 
+// Returns whether the write actually landed. Callers that go on to record a
+// rotation in history check this: a history entry claiming a rotation that the
+// saved roster does not reflect would leave the board showing one thing and the
+// gradebook saying another.
 function saveState(){
   try{
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    return true;
   }catch(e){
     showToast('This browser would not save your changes. Use Download backup to keep a copy.');
+    return false;
   }
 }
 
@@ -169,24 +189,139 @@ function activeKitchenIdxs(block){
   return idxs;
 }
 
+// --- ATTENDANCE ---
+//
+// Being out for the day never moves anybody in kitchens[ki].students. That
+// array IS the rotation cycle — advanceBlock turns it with unshift(pop()) — so
+// physically sinking an absent student would rewrite the cycle itself and
+// nothing would put them back on their return. The flag sits alongside instead,
+// and the present-first seating is worked out at render time, the same way
+// SPLIT already is.
+//
+// With nobody marked, seatOrder is the identity and every path below produces
+// exactly what it did before the feature existed.
+
+// Hot path: called for every seat on every render, so it only reads.
+function isAbsent(block, ki, r){
+  return !!(block.absent && block.absent[ki] && block.absent[ki][r]);
+}
+
+// Write path: repairs a grid that is missing, short, or came in from a
+// hand-edited backup.
+function absentGrid(block){
+  if(!Array.isArray(block.absent)) block.absent = [];
+  for(let ki=0; ki<NUM_KITCHENS; ki++){
+    if(!Array.isArray(block.absent[ki])) block.absent[ki] = [];
+    while(block.absent[ki].length < MAX_KITCHEN) block.absent[ki].push(false);
+  }
+  return block.absent;
+}
+function absentRow(block, ki){ return absentGrid(block)[ki]; }
+function clearAbsences(block){ absentGrid(block).forEach(row=>row.fill(false)); block.absentDate = ''; }
+
+function setAbsent(block, ki, r, on){
+  absentRow(block, ki)[r] = !!on;
+  block.absentDate = todayStamp();
+}
+
+// Absences describe one class day. They lapse when that day ends, so a board
+// left running overnight never opens tomorrow still holding them. A rotation
+// clears them outright; this covers the day you never got round to rotating.
+function expireAbsences(block){
+  if(block.absentDate && block.absentDate !== todayStamp()) clearAbsences(block);
+}
+
+// Display row -> stored seat index, for one kitchen. Present students take the
+// top job titles, absent students sit below them, empty seats last. Always a
+// full permutation of 0..MAX_KITCHEN-1, so every row on screen maps to exactly
+// one stored seat and typing into a row writes one seat.
+//
+// Absent sinks below the present but ABOVE the blanks, not to the literal last
+// row: a real name sitting under the SPLIT rows would make the fullscreen
+// usedRows scan force all five rows to full height and strand the SPLIT rows in
+// the middle, which is the opposite of what that code is for.
+function seatOrder(block, ki){
+  const k = block.kitchens[ki];
+  const present = [], away = [], blank = [];
+  for(let i=0; i<MAX_KITCHEN; i++){
+    const v = k.students[i];
+    if(!isRealStudent(v)) blank.push(i);
+    else if(isAbsent(block, ki, i)) away.push(i);
+    else present.push(i);
+  }
+  return present.concat(away, blank);
+}
+
+// "Active" means the kitchen exists — it has names, its column renders, its
+// seats are editable. "Staffed" means somebody is actually standing there
+// today. A kitchen whose whole crew is out still shows its people, but it
+// cannot wipe a shelf or wash a sink, so duties and the centre sink use this.
+function staffedKitchenIdxs(block){
+  const idxs = [];
+  block.kitchens.forEach((k,i)=>{
+    if(k.students.some((v,r)=> isRealStudent(v) && !isAbsent(block, i, r))) idxs.push(i);
+  });
+  return idxs;
+}
+
+// Attendance is a fact about PEOPLE, not about seats. Anything that re-seats a
+// kitchen — undo, restore-to-original — carries the marks across by name
+// within that kitchen, since rotation never moves a student between kitchens.
+function absentNamesByKitchen(block){
+  return block.kitchens.map((k,ki)=>{
+    const s = new Set();
+    k.students.forEach((v,r)=>{ if(isRealStudent(v) && isAbsent(block,ki,r)) s.add(String(v).trim()); });
+    return s;
+  });
+}
+function applyAbsentNames(block, sets){
+  block.kitchens.forEach((k,ki)=>{
+    const row = absentRow(block, ki), set = sets[ki] || new Set();
+    for(let r=0; r<MAX_KITCHEN; r++){
+      row[r] = isRealStudent(k.students[r]) && set.has(String(k.students[r]).trim());
+    }
+  });
+}
+
 // Rotation
 function advanceBlock(blockId){
   const block = state.blocks[blockId];
   const active = activeKitchenIdxs(block);
+  // Whether anybody was actually here for the session now ending is what
+  // decides if the duty cursor moves on, and it has to be read BEFORE the
+  // marks below are cleared — afterwards an all-absent class is
+  // indistinguishable from a full one.
+  const hadStaff = staffedKitchenIdxs(block).length > 0;
 
   // Only real names rotate, and they always re-seat from the top: a kitchen of
   // 3 holds the first 3 job titles and the jobs below them read SPLIT. Empty
   // seats used to ride along in the roster, which marched a phantom student
   // through the titles and left Manager unfilled while Kitchen Porter was
   // staffed — backwards from the rule the UI states.
+  //
+  // Name and attendance mark travel together. A flag indexed by seat alone
+  // would stay where it was while the student under it moved on to the next
+  // job, so tomorrow's Manager would arrive already marked absent.
+  //
+  // This uses active, not staffed: a kitchen whose whole crew is out still has
+  // to turn its cycle, or they come back to the wrong jobs.
   active.forEach(ki=>{
     const k = block.kitchens[ki];
-    const names = k.students.filter(isRealStudent);
-    if(names.length > 1) names.unshift(names.pop());
-    k.students = k.students.map((_, i) => names[i] || '');
+    const row = absentRow(block, ki);
+    const pairs = k.students
+      .map((s,i)=>({ s, away: !!row[i] }))
+      .filter(p=>isRealStudent(p.s));
+    if(pairs.length > 1) pairs.unshift(pairs.pop());
+    k.students = k.students.map((_, i) => pairs[i] ? pairs[i].s : '');
+    for(let i=0; i<MAX_KITCHEN; i++) row[i] = pairs[i] ? pairs[i].away : false;
   });
 
-  refreshDuties(blockId, true);
+  // A rotation starts the next class day, so today's attendance lapses with it.
+  // Cleared before refreshDuties so the duties it works out for the coming
+  // session assume a full room again.
+  clearAbsences(block);
+
+  refreshDuties(blockId, hadStaff);
   saveState();
 }
 
@@ -195,6 +330,7 @@ function saveBlockOriginal(blockId){
   block.kitchens.forEach(k=>{ k.original = k.students.slice(); });
   block.dutyIndex = 0;
   block.centerSink = 0;
+  lastRotation = null;   // the cursors this would restore have just been reset
   refreshDuties(blockId, false);
   saveState();
   showToast(`${blockId}: current layout saved as the new original.`);
@@ -202,6 +338,9 @@ function saveBlockOriginal(blockId){
 
 function restoreBlockOriginal(blockId){
   const block = state.blocks[blockId];
+  // Who is out today is not a fact about seats, so it survives a re-seat. The
+  // marks are carried over by name once the roster below has been rebuilt.
+  const away = absentNamesByKitchen(block);
   block.kitchens.forEach(k=>{
     // Same top-down seating a rotation produces, so Restore and Advance can
     // never disagree about where a short kitchen's names sit.
@@ -209,12 +348,92 @@ function restoreBlockOriginal(blockId){
     const len = Math.max(k.students.length, cleanOrig.length);
     k.students = Array.from({length: len}, (_, i) => cleanOrig[i] || '');
   });
+  applyAbsentNames(block, away);
   block.dutyIndex = 0;
   block.centerSink = 0;
+  lastRotation = null;   // the seating this would have put back no longer exists
   refreshDuties(blockId, false);
   saveState();
   render();
   showToast(`${blockId}: restored to saved original.`);
+}
+
+// --- UNDO ---
+//
+// The one action Undo can reverse. Held in memory only, deliberately: a
+// snapshot that survived a page reload would let you undo yesterday's rotation
+// into today's class and scramble a seating that is already correct. No undo is
+// safer than a stale one. It also keeps the snapshot out of saveState()'s
+// per-keystroke serialisation and out of backup files.
+let lastRotation = null;
+
+function snapshotBlocks(ids, label){
+  const blocks = {};
+  ids.forEach(id=>{
+    const b = state.blocks[id];
+    if(!b) return;
+    // Not captured: `original` (rotation never touches it), the _display caches
+    // (rebuilt by refreshDuties), and `absent` — attendance is carried across
+    // by name on restore instead, so undoing a rotation does not also undo the
+    // register you took after it.
+    blocks[id] = {
+      kitchens: b.kitchens.map(k=>k.students.slice()),
+      dutyIndex: b.dutyIndex,
+      centerSink: b.centerSink
+    };
+  });
+  lastRotation = { label, blocks, batchId: null };
+  refreshUndoBtn();
+}
+
+function undoLastRotation(){
+  if(!lastRotation){ showToast('Nothing to undo.'); return; }
+  const snap = lastRotation;
+  lastRotation = null;              // one step, no stack, no redo
+  Object.keys(snap.blocks).forEach(id=>{
+    const b = state.blocks[id], s = snap.blocks[id];
+    if(!b) return;                  // the class was removed since the rotation
+    const away = absentNamesByKitchen(b);
+    b.kitchens.forEach((k,ki)=>{ k.students = (s.kitchens[ki] || []).slice(); });
+    applyAbsentNames(b, away);      // marks land on the seats people are restored INTO
+    b.dutyIndex  = s.dutyIndex;
+    b.centerSink = s.centerSink;
+    refreshDuties(id, false);       // no increment: the cursors are already right
+  });
+  if(snap.batchId) removeHistoryBatch(snap.batchId);
+  saveState();
+  render();
+  showToast(`Undone: ${snap.label}.`);
+}
+
+function refreshUndoBtn(){
+  const b = document.getElementById('undoBtn');
+  if(!b) return;
+  // Read the panel that is actually on screen, not currentDayTab — that keeps
+  // its last A/B value while Settings is open, so it never reads as "away".
+  const settings = document.getElementById('panel-settings');
+  const onDayTab = !(settings && settings.classList.contains('active'));
+  b.style.display = (lastRotation && onDayTab) ? '' : 'none';
+  if(lastRotation){
+    b.textContent = `Undo: ${lastRotation.label}`;
+    b.title = `Puts the seats and the duty rotation back as they were before "${lastRotation.label}".`;
+  }
+}
+
+// The per-card Advance button as a user action: snapshot, advance, record.
+// advanceBlock itself stays the bare mechanism, because rotateDay calls it in a
+// loop and a snapshot taken inside it would leave only the last block.
+function advanceBlockAction(blockId){
+  const batchId = newBatchId();
+  const rec = buildRotationRecord(blockId, batchId);   // BEFORE advancing
+  snapshotBlocks([blockId], `Advance ${blockId}`);
+  lastRotation.batchId = batchId;
+  advanceBlock(blockId);
+  // Append BEFORE rendering: render() draws the Settings summary from the
+  // history store, so appending afterwards left that count a rotation behind.
+  const saved = saveState();
+  if(saved && rec) appendHistory([rec]);
+  render();
 }
 
 // Rotates only the blocks scheduled for one day — A and B days never run
@@ -222,9 +441,43 @@ function restoreBlockOriginal(blockId){
 // actually the useful action; the header button tracks whichever day
 // tab is currently open instead (see switchTab).
 function rotateDay(day){
-  state.slots[day].filter(Boolean).forEach(id=>advanceBlock(id));
+  const ids = state.slots[day].filter(Boolean);
+
+  if(alreadyRotatedToday(ids)){
+    if(!confirm(`You already rotated ${day} Day today. Rotate again?`)) return;
+  }
+
+  const batchId = newBatchId();
+  // EVERY record must be built before ANY block advances. refreshDuties does
+  // not only touch its own block — it reassigns the whole day and writes
+  // _dutyDisplay for every block on it, which is what makes the day-wide
+  // no-repeat rule work. So advancing A1 first would overwrite A2's and A3's
+  // duties before they were ever recorded.
+  const batch = ids.map(id=>buildRotationRecord(id, batchId)).filter(Boolean);
+
+  snapshotBlocks(ids, `Rotate ${day} Day`);
+  lastRotation.batchId = batchId;
+  ids.forEach(id=>advanceBlock(id));
+
+  const saved = saveState();
+  if(saved) appendHistory(batch);   // before render(), which draws the summary from it
   render();
-  showToast(`All ${day} Day blocks rotated.`);
+  showToast(`All ${day} Day blocks rotated.${batch.length ? ' Recorded.' : ''}`);
+}
+
+// Only warns when EVERY block being rotated already has today's date on it.
+// A partial match is a legitimate mid-day catch-up, not a double rotation.
+function alreadyRotatedToday(ids){
+  const today = todayStamp();
+  const withStudents = ids.filter(id=>{
+    const b = state.blocks[id];
+    return b && staffedKitchenIdxs(b).length > 0;
+  });
+  if(withStudents.length === 0) return false;
+  return withStudents.every(id=>{
+    const arr = historyFor(id);
+    return arr.length > 0 && arr[arr.length-1].d === today;
+  });
 }
 
 function rotateCurrentDay(){
@@ -272,7 +525,9 @@ function assignDayDuties(day, ensureId){
     const pool = dutiesForBlock(id);
     const takenHere = new Set();    // keeps two kitchens in the SAME block apart
 
-    activeKitchenIdxs(block).forEach((ki, seat)=>{
+    // Staffed, not active: a kitchen whose whole crew is out today cannot do a
+    // duty, so it draws none and the kitchens after it close up the gap.
+    staffedKitchenIdxs(block).forEach((ki, seat)=>{
       if(pool.length === 0){ out[ki] = ''; return; }
       const used = usedByKitchen.get(ki) || [];
       // Where rotation alone would put this kitchen, shifted by the block's
@@ -313,9 +568,12 @@ function assignDayDuties(day, ensureId){
 function refreshDuties(blockId, increment){
   const block = state.blocks[blockId];
   if(!block) return;
-  const active = activeKitchenIdxs(block);
+  expireAbsences(block);
+  const staffedIdxs = staffedKitchenIdxs(block);
 
-  if(increment && active.length > 0){
+  // Nobody in today means nothing was done, so the cursors hold where they are
+  // and the class picks up the same duty when it comes back.
+  if(increment && staffedIdxs.length > 0){
     const pool = dutiesForBlock(blockId);
     if(pool.length > 0) block.dutyIndex = (block.dutyIndex + 1) % pool.length;
     block.centerSink = block.centerSink === 0 ? 1 : 0;
@@ -331,10 +589,13 @@ function refreshDuties(blockId, increment){
   // so it keeps its sink EVERY rotation. Alternating blindly by kitchen number
   // left those sinks unwashed: staffing only K5 and K7 (both odd) means every
   // even turn picks two empty stations, and the pair sinks go dirty.
+  //
+  // A partner whose whole crew is out today counts the same as an empty one —
+  // there is nobody over there to take the other turn either way.
   const centerSinkByKitchen = {};
-  const staffed = new Set(active);
+  const staffed = new Set(staffedIdxs);
   const wantOdd = block.centerSink === 0;
-  active.forEach(ki=>{
+  staffedIdxs.forEach(ki=>{
     centerSinkByKitchen[ki] = staffed.has(ki ^ 1)   // ^1 pairs 0-1, 2-3, 4-5, 6-7
       ? (((ki+1)%2===1) === wantOdd)
       : true;
@@ -490,6 +751,11 @@ function confirmImport(){
   });
   block.dutyIndex = 0;
   block.centerSink = 0;
+  // Brand new students, so yesterday's attendance means nothing — and an
+  // undo would restore a roster these names never sat in.
+  block.absent = Array.from({length:NUM_KITCHENS}, ()=>Array(MAX_KITCHEN).fill(false));
+  block.absentDate = '';
+  lastRotation = null;
   refreshDuties(importTargetBlock, false);
   saveState();
   closeImportModal();
@@ -553,16 +819,22 @@ function switchTab(which){
   } else {
     rotateBtn.style.display = 'none';
   }
+  refreshUndoBtn();   // Undo belongs next to Rotate, so it hides with it
 }
 
 // The derived look of one seat. Shared by the initial render and the in-place
 // refresh below so the two can never drift apart.
-function seatChrome(block, active, ki, r){
+// `ci` is the STORED seat index, `row` the display row it is drawn at. The two
+// part company as soon as somebody is absent, so both are passed rather than
+// derived from one another.
+function seatChrome(block, active, ki, ci, row){
   const isEmpty = !active.includes(ki);
-  const isSplitSlot = !isEmpty && !isRealStudent(block.kitchens[ki].students[r]);
+  const v = block.kitchens[ki].students[ci];
+  const isSplitSlot = !isEmpty && !isRealStudent(v);
+  const isAway = !isEmpty && isRealStudent(v) && isAbsent(block, ki, ci);
   return {
-    isEmpty, isSplitSlot,
-    placeholder: (isEmpty && r===0) ? '+ add kitchen' : (isSplitSlot ? 'SPLIT' : '')
+    isEmpty, isSplitSlot, isAway,
+    placeholder: (isEmpty && row===0) ? '+ add kitchen' : (isSplitSlot ? 'SPLIT' : '')
   };
 }
 
@@ -583,11 +855,15 @@ function refreshBlockChrome(blockId){
     el.classList.toggle('empty', !active.includes(+el.dataset.k));
   });
   card.querySelectorAll('input.seat').forEach(el=>{
-    const c = seatChrome(block, active, +el.dataset.k, +el.dataset.r);
+    const c = seatChrome(block, active, +el.dataset.k, +el.dataset.ci, +el.dataset.r);
     el.classList.toggle('empty', c.isEmpty);
     el.classList.toggle('split-placeholder', c.isSplitSlot);
+    el.classList.toggle('away', c.isAway);
     el.placeholder = c.placeholder; // never el.value: that is what the user is typing
   });
+  // Duty and sink read from the DISPLAY maps, which refreshDuties builds from
+  // staffed kitchens only — so a kitchen whose crew is all out simply shows
+  // nothing in these rows rather than a job nobody is there to do.
   card.querySelectorAll('.duty[data-k]').forEach(el=>{
     const ki = +el.dataset.k;
     el.classList.toggle('empty', !active.includes(ki));
@@ -630,14 +906,18 @@ function renderDayPanel(day){
           <option value="2" ${block.course===2?'selected':''}>Culinary 2</option>
         </select>
         <div class="block-actions">
-          <button class="btn-primary" onclick="advanceBlock('${id}'); render();">Advance</button>
+          <button class="btn-primary" onclick="advanceBlockAction('${id}')">Advance</button>
           <button class="btn-quiet" onclick="openFullscreen('${id}')">${ICON_EXPAND}Full screen</button>
           <button class="btn-quiet menu-trigger" onclick="openMenu(event, this, blockMenuHtml('${id}'))" aria-label="More actions">${ICON_KEBAB}</button>
         </div>
       </div>
       <div class="kitchen-grid">`;
 
+    expireAbsences(block);
     const active = activeKitchenIdxs(block);
+    // Display row -> stored seat, per kitchen. Identity when nobody is out.
+    const orders = {};
+    for(let ki=0; ki<NUM_KITCHENS; ki++) orders[ki] = seatOrder(block, ki);
 
     // Header row: label column, then each kitchen's header.
     html += `<div class="khead">&nbsp;</div>`;
@@ -652,13 +932,18 @@ function renderDayPanel(day){
         // An unfilled job in a kitchen that HAS students is shared by the
         // group, so it reads SPLIT. A placeholder rather than a value means
         // typing a name just works and clearing one brings the marker back.
-        const c = seatChrome(block, active, ki, r);
-        const raw = block.kitchens[ki].students[r] || '';
+        // data-r stays the DISPLAY row, so the arrow-key navigation keeps
+        // working unchanged — every row 0..4 still exists on screen. data-ci is
+        // the stored seat this row is showing, and it is what edits write to.
+        const ci = orders[ki][r];
+        const c = seatChrome(block, active, ki, ci, r);
+        const raw = block.kitchens[ki].students[ci] || '';
         const val = isRealStudent(raw) ? raw : '';
         const hint = c.placeholder ? ` placeholder="${c.placeholder}"` : '';
-        html += `<input class="seat ${c.isSplitSlot?'split-placeholder':''} ${c.isEmpty?'empty':''}" value="${escapeAttr(val)}"${hint}
-          data-block="${id}" data-k="${ki}" data-r="${r}"
-          oninput="updateSeat('${id}',${ki},${r},this.value)">`;
+        const away = c.isAway ? ' title="Out today — this job is shared by the kitchen"' : '';
+        html += `<input class="seat ${c.isSplitSlot?'split-placeholder':''} ${c.isAway?'away':''} ${c.isEmpty?'empty':''}" value="${escapeAttr(val)}"${hint}${away}
+          data-block="${id}" data-k="${ki}" data-r="${r}" data-ci="${ci}"
+          oninput="updateSeat('${id}',${ki},${ci},this.value)">`;
       }
     }
 
@@ -731,12 +1016,14 @@ function removeClass(blockId){
   const posIdx = state.slots[day].indexOf(blockId);
   if(posIdx === -1) return;
 
-  const ok = confirm(`Remove the class at ${day}${posIdx+1}? This deletes its roster and duty history and makes ${day}${posIdx+1} a prep period. This can't be undone (unless you have a backup).`);
+  const ok = confirm(`Remove the class at ${day}${posIdx+1}? This deletes its roster, its duty rotation and its participation records, and makes ${day}${posIdx+1} a prep period. Export the participation CSV first if you still need it. This can't be undone (unless you have a backup).`);
   if(!ok) return;
 
   state.slots[day][posIdx] = null;
   delete state.blocks[blockId];
   state.duties.forEach(d=>{ delete d.apply[blockId]; });
+  deleteBlockHistory(blockId);   // the confirm above promises this
+  lastRotation = null;
   saveState();
   render();
   showToast(`${day}${posIdx+1} is now a prep period.`);
@@ -757,6 +1044,9 @@ function updateSeat(blockId, kIdx, rIdx, val){
   // shows the marker either way and the saved data stays honest about who is
   // actually in the kitchen.
   k.students[rIdx] = isSplit(val) ? '' : val;
+  // An emptied seat holds nobody, so it cannot hold an absence either. Renaming
+  // one keeps the mark, which is what fixing a typo in an absent name needs.
+  if(!isRealStudent(k.students[rIdx])) absentRow(state.blocks[blockId], kIdx)[rIdx] = false;
   saveState();
   // In-place, so the SPLIT markers and duty row keep up as you type without the
   // focused input being torn out from under you. The full-screen view is a
@@ -770,6 +1060,8 @@ function render(){
   renderDayPanel('B');
   renderDutyTable();
   renderJobTitleTable();
+  renderHistorySection();
+  refreshUndoBtn();
   if(fullscreenBlockId) renderFullscreen();
 }
 
@@ -792,15 +1084,36 @@ function renderJobTitleTable(){
 }
 
 // Backup and restore (manual, local file)
-function downloadBackup(){
-  const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+
+// The one way this tool hands a file to the browser, shared by the JSON backup
+// and the participation CSV. A blob URL plus a detached anchor is what the CSP
+// allows: connect-src 'none' rules out uploading anything anywhere.
+function downloadBlob(blob, filename){
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  const stamp = new Date().toISOString().slice(0,10);
   a.href = url;
-  a.download = `kitchen-rotation-backup-${stamp}.json`;
+  a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+// LOCAL calendar date, not toISOString(): that reports UTC, which in a US
+// timezone has already rolled over to tomorrow by late afternoon. A rotation
+// at the end of a 3pm class would have been filed under the next day, and
+// absences would have expired mid-afternoon.
+function dateStamp(d){
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function todayStamp(){ return dateStamp(new Date()); }
+
+function downloadBackup(){
+  // History lives under its own storage key, so it has to be folded in here
+  // explicitly. It rides as a SIBLING of the state fields rather than wrapping
+  // them, which keeps the file loadable by older builds and keeps
+  // loadBackupFile's `if(!parsed.blocks)` guard meaningful.
+  const payload = Object.assign({}, state, { rotationHistory: historyStore });
+  downloadBlob(new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'}),
+               `kitchen-rotation-backup-${todayStamp()}.json`);
   showToast('Backup file downloaded.');
 }
 function loadBackupFile(input){
@@ -811,10 +1124,32 @@ function loadBackupFile(input){
     try{
       const parsed = JSON.parse(e.target.result);
       if(!parsed.blocks) throw new Error('bad file');
-      state = parsed;
+
+      // Lift history out BEFORE the payload becomes `state`. Without this the
+      // whole history — hundreds of kilobytes — would live inside `state` and
+      // be re-serialised by saveState() on every keystroke, which is the exact
+      // thing storing it under its own key exists to prevent.
+      const incomingHistory = parsed.rotationHistory;
+      delete parsed.rotationHistory;
+
+      // Restoring through normalizeState rather than assigning raw: a backup
+      // written by an older build has no `absent` grid, may have a short
+      // `slots` array, and may carry the superseded job titles. Assigning it
+      // unrepaired put the app in states the UI cannot render.
+      state = normalizeState(parsed);
       saveState();
+
+      // A backup that predates history leaves what is already here alone. A
+      // restore should not silently destroy a term of participation records
+      // just because the file is older than the feature.
+      if(incomingHistory){
+        historyStore = normalizeHistory(incomingHistory);
+        writeHistory();
+      }
       render();
-      showToast('Backup loaded.');
+      showToast(incomingHistory
+        ? 'Backup loaded.'
+        : 'Backup loaded. It held no rotation history, so the history already in this browser was kept.');
     }catch(err){
       showToast('That file could not be read. It needs to be a backup downloaded from this tool.');
     }
@@ -848,11 +1183,239 @@ document.addEventListener('click', closeMenu);
 
 function blockMenuHtml(id){
   return `
+    <button onclick="openAbsenceModal('${id}');">${ICON_ABSENT}Attendance&hellip;</button>
+    <button onclick="openHistoryModal('${id}');">${ICON_HISTORY}Rotation history</button>
     <button onclick="saveBlockOriginal('${id}'); render();">${ICON_SAVE}Save as original</button>
     <button onclick="restoreBlockOriginal('${id}');">${ICON_RESTORE}Restore to original</button>
     <button onclick="openImportModal('${id}');">${ICON_IMPORT}Import roster</button>
     <button onclick="removeClass('${id}');" style="color:var(--bad);">${ICON_TRASH}Remove this class</button>
   `;
+}
+
+// --- ATTENDANCE UI ---
+let absenceTargetBlock = null;
+
+function openAbsenceModal(blockId){
+  absenceTargetBlock = blockId;
+  const block = state.blocks[blockId];
+  const day = block.day;
+  const posIdx = state.slots[day].indexOf(blockId);
+  document.getElementById('absenceModalTitle').textContent =
+    `Attendance — ${day}${posIdx+1} ${block.className}`;
+  renderAbsenceBody();
+  document.getElementById('absenceModalBg').classList.add('show');
+}
+
+function closeAbsenceModal(){
+  document.getElementById('absenceModalBg').classList.remove('show');
+  absenceTargetBlock = null;
+}
+
+function renderAbsenceBody(){
+  const block = state.blocks[absenceTargetBlock];
+  let html = '';
+  // Chips are listed in STORED order, never seating order, so they do not
+  // reshuffle under the cursor halfway through taking the register.
+  activeKitchenIdxs(block).forEach(ki=>{
+    const chips = block.kitchens[ki].students.map((v,r)=> !isRealStudent(v) ? '' :
+      `<button class="att-chip ${isAbsent(block,ki,r)?'away':''}" aria-pressed="${isAbsent(block,ki,r)}"
+         onclick="toggleAbsence(${ki},${r},this)">${escapeHtml(v)}</button>`).join('');
+    if(chips) html += `<div class="att-row"><div class="att-khead">K${ki+1}</div><div class="att-chips">${chips}</div></div>`;
+  });
+  document.getElementById('absenceBody').innerHTML = html ||
+    '<p class="hint">No students in this class yet.</p>';
+}
+
+function toggleAbsence(ki, r, btn){
+  const id = absenceTargetBlock, block = state.blocks[id];
+  const on = !isAbsent(block, ki, r);
+  setAbsent(block, ki, r, on);
+  saveState();
+  // The chip restyles in place so the button under the cursor survives its own
+  // click. The grid behind does need a full panel rebuild — the seating order
+  // changed, which moves names between inputs, and that is exactly the thing
+  // refreshBlockChrome refuses to do.
+  btn.classList.toggle('away', on);
+  btn.setAttribute('aria-pressed', String(on));
+  renderDayPanel(block.day);
+  if(fullscreenBlockId === id) renderFullscreen();
+}
+
+function clearBlockAbsences(){
+  if(!absenceTargetBlock) return;
+  const block = state.blocks[absenceTargetBlock];
+  clearAbsences(block);
+  saveState();
+  renderAbsenceBody();
+  renderDayPanel(block.day);
+  if(fullscreenBlockId === absenceTargetBlock) renderFullscreen();
+  showToast('Everyone marked present.');
+}
+
+// Right-click a seat for a one-off — a late arrival, or someone who turns up
+// after the register was taken. Same underlying mark as the modal.
+document.addEventListener('contextmenu', e=>{
+  const el = e.target;
+  if(!el.classList || !el.classList.contains('seat') || !el.dataset.block) return;
+  const blockId = el.dataset.block, ki = +el.dataset.k, ci = +el.dataset.ci;
+  const block = state.blocks[blockId];
+  if(!block || !isRealStudent(block.kitchens[ki].students[ci])) return;
+  e.preventDefault();
+  const away = isAbsent(block, ki, ci);
+  openMenu(e, el, `
+    <button onclick="markAbsentFromSeat('${blockId}',${ki},${ci},${!away})">${away ? ICON_RESTORE : ICON_ABSENT}Mark ${away ? 'present' : 'absent'}</button>
+    <button onclick="openAbsenceModal('${blockId}')">${ICON_ABSENT}Attendance&hellip;</button>
+  `);
+});
+
+function markAbsentFromSeat(blockId, ki, ci, on){
+  const block = state.blocks[blockId];
+  setAbsent(block, ki, ci, on);
+  saveState();
+  renderDayPanel(block.day);
+  if(fullscreenBlockId === blockId) renderFullscreen();
+  if(absenceTargetBlock === blockId) renderAbsenceBody();
+}
+
+// --- HISTORY UI ---
+let historyTargetBlock = null;
+let historyFilter = 'all';
+
+function openHistoryModal(blockId){
+  historyTargetBlock = blockId;
+  historyFilter = 'all';
+  const block = state.blocks[blockId];
+  const day = block.day;
+  const posIdx = state.slots[day].indexOf(blockId);
+  document.getElementById('historyModalTitle').textContent =
+    `Rotation history — ${day}${posIdx+1} ${block.className}`;
+  setHistoryFilter('all');
+  document.getElementById('historyModalBg').classList.add('show');
+}
+
+function closeHistoryModal(){
+  document.getElementById('historyModalBg').classList.remove('show');
+  historyTargetBlock = null;
+}
+
+function setHistoryFilter(which){
+  historyFilter = which;
+  document.getElementById('histAll').classList.toggle('on', which === 'all');
+  document.getElementById('histWeek').classList.toggle('on', which === 'week');
+  renderHistoryBody();
+}
+
+function renderHistoryBody(){
+  const recs = historyFor(historyTargetBlock).slice().reverse();   // newest first
+  const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
+  const cutoff = dateStamp(weekAgo);
+  const shown = historyFilter === 'week' ? recs.filter(r=>r.d >= cutoff) : recs;
+
+  const body = document.getElementById('historyBody');
+  if(shown.length === 0){
+    body.innerHTML = `<p class="hint">${recs.length === 0
+      ? 'Nothing recorded for this class yet. A record is written each time it rotates.'
+      : 'Nothing in the last seven days.'}</p>`;
+    return;
+  }
+
+  body.innerHTML = shown.map(rec=>{
+    const titles = historyStore.titleSets[rec.ts] || state.jobTitles;
+    const kitchens = rec.k.map(kr=>{
+      const absent = new Set(kr.ab || []);
+      const held = kr.s.map((name, row)=> !isRealStudent(name) ? '' :
+          `${escapeHtml(name)} <span class="${absent.has(row)?'hist-absent':''}">(${escapeHtml(titles[row] || ('Seat '+(row+1)))}${absent.has(row)?', out':''})</span>`)
+        .filter(Boolean).join(', ');
+      const bits = [];
+      if(kr.du) bits.push(`<span class="hist-duty">${escapeHtml(kr.du)}</span>`);
+      if(kr.cs) bits.push(`<span class="hist-sink">Center Sink</span>`);
+      return `<div class="hist-k"><b>K${kr.i+1}</b> — ${bits.join(' · ') || 'no duty'}<br>${held}</div>`;
+    }).join('');
+    return `<div class="hist-entry"><div class="hist-date">${escapeHtml(formatHistoryDate(rec.d))}</div>${kitchens}</div>`;
+  }).join('');
+}
+
+function formatHistoryDate(iso){
+  const parts = String(iso).split('-');
+  if(parts.length !== 3) return iso;
+  const d = new Date(+parts[0], +parts[1]-1, +parts[2]);
+  return isNaN(d) ? iso : d.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+}
+
+function renderHistorySection(){
+  const el = document.getElementById('historySummary');
+  if(!el) return;
+  const total = historyCount();
+  if(total === 0){
+    el.innerHTML = '<p class="hint">No rotations recorded yet.</p>';
+    return;
+  }
+  let oldest = '';
+  Object.keys(historyStore.records).forEach(id=>{
+    const arr = historyStore.records[id];
+    if(arr.length && (!oldest || arr[0].d < oldest)) oldest = arr[0].d;
+  });
+  const classes = Object.keys(historyStore.records).filter(id=>historyStore.records[id].length).length;
+  el.innerHTML = `<p class="hint">${total} rotation${total===1?'':'s'} recorded across ${classes} class${classes===1?'':'es'}${oldest ? `, oldest ${escapeHtml(formatHistoryDate(oldest))}` : ''}.</p>`;
+}
+
+function clearAllHistory(){
+  if(historyCount() === 0){ showToast('There is no history to clear.'); return; }
+  if(!confirm('Delete every participation record for every class? Export the CSV first if you still need it. This cannot be undone.')) return;
+  historyStore = emptyHistory();
+  historyWriteDisabled = false;
+  writeHistory();
+  render();
+  showToast('Participation records cleared.');
+}
+
+// --- CSV EXPORT ---
+
+// Quote only where quoting is required. Deliberately no formula-injection
+// guard: the usual fix prefixes a quote or space to anything starting with
+// = + - @, which corrupts the student name this file exists to be matched on.
+// Everything here is the teacher's own roster and their own typed duty text.
+function csvField(v){
+  const s = String(v == null ? '' : v);
+  return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function toCSV(rows){
+  // CRLF and a UTF-8 BOM, or Excel on Windows mangles accented names. parseCSV
+  // already strips a leading BOM, so the tool can reread its own exports.
+  return '﻿' + rows.map(r=>r.map(csvField).join(',')).join('\r\n') + '\r\n';
+}
+
+function buildParticipationRows(blockIds){
+  const rows = [['Date','Day','Block','Class','Kitchen','Job Title','Student','Status','Extra Duty','Center Sink']];
+  blockIds.forEach(id=>{
+    historyFor(id).forEach(rec=>{
+      const titles = historyStore.titleSets[rec.ts] || state.jobTitles;
+      const day = id.charAt(0);
+      rec.k.forEach(kr=>{
+        const absent = new Set(kr.ab || []);
+        kr.s.forEach((name, row)=>{
+          if(!isRealStudent(name)) return;   // a SPLIT job has no student to credit
+          rows.push([rec.d, day, id, rec.cn, 'K'+(kr.i+1),
+                     titles[row] || ('Seat '+(row+1)), name,
+                     absent.has(row) ? 'Absent' : 'Present',
+                     kr.du || '', kr.cs ? 'Yes' : 'No']);
+        });
+      });
+    });
+  });
+  return rows;
+}
+
+function exportParticipationCSV(blockId){
+  // One block's id from the history modal, or every block that has records.
+  const ids = blockId ? [blockId] : Object.keys(historyStore.records).sort();
+  const rows = buildParticipationRows(ids);
+  if(rows.length === 1){ showToast('No rotations recorded yet, so there is nothing to export.'); return; }
+  const name = blockId
+    ? `kitchen-participation-${blockId}-${todayStamp()}.csv`
+    : `kitchen-participation-${todayStamp()}.csv`;
+  downloadBlob(new Blob([toCSV(rows)], {type:'text/csv;charset=utf-8'}), name);
+  showToast(`Exported ${rows.length-1} row${rows.length===2?'':'s'}.`);
 }
 // Bell schedule and fullscreen
 // Position within a day (1st, 2nd, 3rd, 4th block of that day) maps
@@ -888,6 +1451,8 @@ const ICON_TRASH    = I('<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2
 const ICON_DOWNLOAD = I('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>');
 const ICON_UPLOAD   = I('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>');
 const ICON_TRASH_SOLO = I('<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>','icon-solo');
+const ICON_ABSENT = I('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="8" x2="22" y2="13"/><line x1="22" y1="8" x2="17" y2="13"/>');
+const ICON_HISTORY = I('<path d="M3 12a9 9 0 1 0 2.6-6.4"/><polyline points="3 3 3 8 8 8"/><polyline points="12 7 12 12 15 14"/>');
 const ICON_MOON = '<svg class="fs-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M20.5 14.3A8.5 8.5 0 0 1 9.7 3.5a8.5 8.5 0 1 0 10.8 10.8z"/></svg>';
 const ICON_SUN = '<svg class="fs-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2" fill="currentColor" stroke="none"/><line x1="12" y1="1.8" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22.2"/><line x1="1.8" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22.2" y2="12"/><line x1="4.6" y1="4.6" x2="6.2" y2="6.2"/><line x1="17.8" y1="17.8" x2="19.4" y2="19.4"/><line x1="4.6" y1="19.4" x2="6.2" y2="17.8"/><line x1="17.8" y1="6.2" x2="19.4" y2="4.6"/></svg>';
 
@@ -948,7 +1513,12 @@ function renderFullscreen(){
   const day = block.day;
   const posIdx = state.slots[day].indexOf(fullscreenBlockId);
   const label = `${day}${posIdx+1}`;
+  expireAbsences(block);
   const active = activeKitchenIdxs(block);
+  const staffed = staffedKitchenIdxs(block);
+  // Display row -> stored seat, per kitchen. Identity when nobody is out.
+  const orders = {};
+  active.forEach(ki=>{ orders[ki] = seatOrder(block, ki); });
 
   // Shared-label grid: job titles appear ONCE down the left column instead
   // of repeated inside every kitchen — same pattern as the main page. This
@@ -970,7 +1540,7 @@ function renderFullscreen(){
     // row would eat height the real name rows could be using.
     let usedRows = 0;
     for(let r=0; r<MAX_KITCHEN; r++){
-      if(active.some(ki => isRealStudent(block.kitchens[ki].students[r]))) usedRows = r + 1;
+      if(active.some(ki => isRealStudent(block.kitchens[ki].students[orders[ki][r]]))) usedRows = r + 1;
     }
     if(usedRows === 0) usedRows = 1;
     const splitRows = MAX_KITCHEN - usedRows;
@@ -994,22 +1564,30 @@ function renderFullscreen(){
       const splitRow = r >= usedRows;
       gridHtml += `<div class="fs-glabel ${splitRow?'fs-glabel-split':''}">${escapeHtml(state.jobTitles[r])}</div>`;
       active.forEach(ki=>{
-        const name = block.kitchens[ki].students[r];
-        gridHtml += isRealStudent(name)
-          ? `<div class="fs-gname">${escapeHtml(name)}</div>`
-          : `<div class="fs-gsplit">SPLIT</div>`;
+        const ci = orders[ki][r];
+        const name = block.kitchens[ki].students[ci];
+        if(!isRealStudent(name)){ gridHtml += `<div class="fs-gsplit">SPLIT</div>`; return; }
+        // Out today: the name stays at full size and a veil lies ON TOP of the
+        // cell. An overlay takes no height from the grid, where a stacked
+        // ABSENT line would have cost every other name on the board a row.
+        gridHtml += isAbsent(block, ki, ci)
+          ? `<div class="fs-gname fs-gaway">${escapeHtml(name)}<span class="fs-away-veil"><b>ABSENT</b><i>SPLIT</i></span></div>`
+          : `<div class="fs-gname">${escapeHtml(name)}</div>`;
       });
     }
 
     gridHtml += `<div class="fs-glabel fs-glabel-duty">Extra Duty</div>`;
     active.forEach(ki=>{
+      // A kitchen with nobody in today draws no duty at all, rather than
+      // "None" — there is a difference between no duty and no one to do it.
+      if(!staffed.includes(ki)){ gridHtml += `<div class="fs-gduty fs-gduty-out">&nbsp;</div>`; return; }
       const dutyText = (block._dutyDisplay && block._dutyDisplay[ki]) || '';
       gridHtml += `<div class="fs-gduty">${dutyText ? escapeHtml(dutyText) : 'None'}</div>`;
     });
 
     gridHtml += `<div class="fs-glabel">Center Sink</div>`;
     active.forEach(ki=>{
-      const hasSink = !!(block._centerSinkDisplay && block._centerSinkDisplay[ki]);
+      const hasSink = staffed.includes(ki) && !!(block._centerSinkDisplay && block._centerSinkDisplay[ki]);
       gridHtml += `<div class="fs-gsink ${hasSink?'active':''}">${hasSink ? ICON_DROPLET+' Center Sink' : ''}</div>`;
     });
 
@@ -1170,7 +1748,23 @@ function updateFullscreenTimers(){
 }
 
 document.addEventListener('keydown', e=>{
-  if(e.key === 'Escape' && fullscreenBlockId) closeFullscreen();
+  if(e.key === 'Escape'){
+    if(fullscreenBlockId){ closeFullscreen(); return; }
+    if(document.getElementById('absenceModalBg').classList.contains('show')){ closeAbsenceModal(); return; }
+    if(document.getElementById('historyModalBg').classList.contains('show')){ closeHistoryModal(); return; }
+  }
+
+  // Ctrl/Cmd+Z undoes the last rotation — but only outside a text field, where
+  // the browser's own undo is what was meant. A rotation ends in render(),
+  // which destroys focus, so activeElement is the body at exactly the moment
+  // this is wanted.
+  if((e.ctrlKey || e.metaKey) && !e.shiftKey && String(e.key).toLowerCase() === 'z'){
+    const t = e.target;
+    if(t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    if(!lastRotation) return;
+    e.preventDefault();
+    undoLastRotation();
+  }
 });
 
 // --- SEAT KEYBOARD NAVIGATION ---
@@ -1226,6 +1820,165 @@ document.addEventListener('focusin', e=>{
   if(seatNavByKeyboard && el.classList && el.classList.contains('seat')) el.select();
   seatNavByKeyboard = false;
 });
+
+// Rotation history
+//
+// Kept in its own localStorage key, NOT on `state`, for one hard reason:
+// saveState() serialises the whole of `state` and updateSeat() calls it on
+// every keystroke. At the 90-per-block cap this store runs to roughly half a
+// megabyte, so living on `state` would mean re-stringifying half a megabyte
+// per character while a roster of a hundred names is typed in. Writes here
+// happen only when a rotation is recorded — about twice a day.
+//
+// Single-teacher tool, so two tabs open on the same browser each hold their
+// own copy of this and the last write wins. That is already true of `state`.
+const HISTORY_KEY = 'kitchenRotationTool_history_v1';
+const HISTORY_CAP = 90;           // rotations kept per block
+const HISTORY_SOFT_MAX = 1500000; // chars; trim before the browser throws
+
+let historyStore = loadHistory();
+let historyWriteDisabled = false; // set after a quota failure, until reload
+
+function emptyHistory(){ return { v:1, titleSets: [], records: {} }; }
+
+function loadHistory(){
+  try{
+    const raw = localStorage.getItem(HISTORY_KEY);
+    if(!raw) return emptyHistory();
+    return normalizeHistory(JSON.parse(raw));
+  }catch(e){ return emptyHistory(); }   // storage can throw on READ in private mode
+}
+
+// The history-side counterpart to normalizeState: never trust what comes back
+// off disk or out of a backup file.
+function normalizeHistory(parsed){
+  const out = emptyHistory();
+  if(!parsed || typeof parsed !== 'object') return out;
+  out.titleSets = Array.isArray(parsed.titleSets)
+    ? parsed.titleSets.filter(t=>Array.isArray(t)).map(t=>t.map(x=>String(x==null?'':x)))
+    : [];
+  const recs = (parsed.records && typeof parsed.records === 'object') ? parsed.records : {};
+  Object.keys(recs).forEach(id=>{
+    if(!Array.isArray(recs[id])) return;
+    const clean = recs[id].filter(r=> r && typeof r === 'object' && Array.isArray(r.k));
+    if(clean.length) out.records[id] = clean.slice(-HISTORY_CAP);
+  });
+  return out;
+}
+
+function writeHistory(){
+  if(historyWriteDisabled) return false;
+  try{
+    let json = JSON.stringify(historyStore);
+    // Trim ahead of the limit rather than waiting to be thrown at: some
+    // browsers report quota against the whole origin, so the exception can
+    // arrive from a write that is not itself the large one.
+    if(json.length > HISTORY_SOFT_MAX){ trimHistoryTo(Math.floor(HISTORY_CAP*0.75)); json = JSON.stringify(historyStore); }
+    localStorage.setItem(HISTORY_KEY, json);
+    return true;
+  }catch(e){
+    // The rotation itself already happened and has been saved. Losing the
+    // record of it must never take the rotation down with it, so this never
+    // rethrows.
+    try{
+      trimHistoryTo(Math.max(20, Math.floor(HISTORY_CAP*0.75)));
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(historyStore));
+      return true;
+    }catch(e2){
+      historyWriteDisabled = true;   // one warning, not one per rotation
+      showToast('Out of storage. The rotation happened but was not recorded. Export your participation CSV from Settings, then clear history.');
+      return false;
+    }
+  }
+}
+
+function trimHistoryTo(cap){
+  Object.keys(historyStore.records).forEach(id=>{
+    const arr = historyStore.records[id];
+    if(arr.length > cap) arr.splice(0, arr.length - cap);
+  });
+}
+
+// Job titles are renameable, so a record that did not pin down the titles in
+// force on the day would silently relabel a year of history the first time a
+// seat is renamed — this tool has already been through one such rename. Storing
+// an index into a dictionary costs a few bytes instead of fifty per record.
+function titleSetIndex(){
+  const want = JSON.stringify(state.jobTitles);
+  const at = historyStore.titleSets.findIndex(t=>JSON.stringify(t) === want);
+  if(at >= 0) return at;
+  historyStore.titleSets.push(state.jobTitles.slice());
+  return historyStore.titleSets.length - 1;
+}
+
+function newBatchId(){
+  return Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+}
+
+// Snapshot of what a block JUST FINISHED — call this before advanceBlock()
+// touches anything. Returns null for a class with nobody in it, so prep periods
+// and all-absent days never reach the gradebook.
+function buildRotationRecord(blockId, batchId){
+  const block = state.blocks[blockId];
+  if(!block) return null;
+  const staffed = staffedKitchenIdxs(block);
+  if(staffed.length === 0) return null;
+
+  refreshDuties(blockId, false);   // no increment; guarantees the display matches the screen
+
+  const kitchens = staffed.map(ki=>{
+    // Display order, not stored order: seatOrder puts present students first,
+    // so the job a student actually held is the DISPLAY row's title. Recording
+    // raw seat order would credit the wrong job to the wrong student on every
+    // day somebody was out.
+    const order = seatOrder(block, ki);
+    return {
+      i: ki,
+      s: order.map(si => block.kitchens[ki].students[si] || ''),
+      du: (block._dutyDisplay && block._dutyDisplay[ki]) || '',
+      cs: (block._centerSinkDisplay && block._centerSinkDisplay[ki]) ? 1 : 0,
+      ab: order.map((si,row)=> isAbsent(block, ki, si) ? row : -1).filter(r=>r >= 0)
+    };
+  });
+
+  // _id rides along only as far as appendHistory, which uses it as the map key
+  // and strips it — the key already names the block, so storing it twice would
+  // just be a second thing that can disagree with the first.
+  return { _id: blockId, b: batchId, d: todayStamp(), cn: block.className, ts: titleSetIndex(), k: kitchens };
+}
+
+function appendHistory(batch){
+  if(!batch || !batch.length) return;
+  batch.forEach(rec=>{
+    const id = rec._id;
+    delete rec._id;
+    if(!historyStore.records[id]) historyStore.records[id] = [];
+    const arr = historyStore.records[id];
+    arr.push(rec);
+    if(arr.length > HISTORY_CAP) arr.splice(0, arr.length - HISTORY_CAP);
+  });
+  writeHistory();
+}
+
+function removeHistoryBatch(batchId){
+  let touched = false;
+  Object.keys(historyStore.records).forEach(id=>{
+    const before = historyStore.records[id].length;
+    historyStore.records[id] = historyStore.records[id].filter(r=>r.b !== batchId);
+    if(historyStore.records[id].length !== before) touched = true;
+  });
+  if(touched) writeHistory();
+  return touched;
+}
+
+function deleteBlockHistory(blockId){
+  if(historyStore.records[blockId]){ delete historyStore.records[blockId]; writeHistory(); }
+}
+
+function historyFor(blockId){ return historyStore.records[blockId] || []; }
+function historyCount(){
+  return Object.keys(historyStore.records).reduce((n,id)=>n + historyStore.records[id].length, 0);
+}
 
 // Theme
 // Kept in its own localStorage key rather than in state, so it's a
