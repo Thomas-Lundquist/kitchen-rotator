@@ -127,6 +127,26 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js"></script>
+<!-- Classic scripts, not ES modules, and the order matters only for main.js,
+     which must come last. They share one global scope, which is what lets the
+     inline onclick handlers above reach their functions, and unlike modules
+     they still run when this file is opened straight from disk (file://). -->
+<script src="js/util.js"></script>
+<script src="js/icons.js"></script>
+<script src="js/state.js"></script>
+<script src="js/seats.js"></script>
+<script src="js/duties.js"></script>
+<script src="js/history.js"></script>
+<script src="js/csv.js"></script>
+<script src="js/rotation.js"></script>
+<script src="js/roster.js"></script>
+<script src="js/board.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/attendance-ui.js"></script>
+<script src="js/history-ui.js"></script>
+<script src="js/fullscreen.js"></script>
+<script src="js/keyboard.js"></script>
+<script src="js/theme.js"></script>
+<script src="js/main.js"></script>
 </body>
 </html>

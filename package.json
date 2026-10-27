@@ -1,0 +1,8 @@
+{
+  "name": "kitchen-rotator",
+  "private": true,
+  "description": "Rotates culinary students through kitchen seats, jobs, and duties.",
+  "scripts": {
+    "test": "node --test"
+  }
+}
