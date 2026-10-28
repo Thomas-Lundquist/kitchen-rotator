@@ -1422,20 +1422,90 @@ function exportParticipationCSV(blockId){
 // directly to these times, regardless of A or B day — both day types use
 // the same four daily time blocks (e.g. "1A/5B" share one time slot).
 // Typos in the source schedule (4th block listed as "am") corrected to PM.
+//
+// Assembly days run TWO assemblies at once (1st Assembly: rooms 1409-1722,
+// 3412-3517; 2nd Assembly: rooms 0101-1113, 2201-2608), so the one period
+// that overlaps the assembly block is split into two possible chunks —
+// one group has class first and goes to the assembly after, the other
+// goes to the assembly first and has class after. A single teacher's room
+// always falls in the same group, but this tool can't know which, so both
+// variants are offered and the teacher picks the one matching their room.
+// `group` clusters variants under one optgroup in the picker; a null group
+// means the entry stands alone.
 const BELL_SCHEDULES = {
-  monThu: { label:'Monday–Thursday', blocks: [
+  monThu: { label:'Monday–Thursday', group:null, blocks: [
     {start:'07:30', end:'08:55'},
     {start:'09:01', end:'10:33'},
     {start:'11:14', end:'12:39'},
     {start:'12:45', end:'14:10'}
   ]},
-  friday: { label:'Friday (Late Start)', blocks: [
+  friday: { label:'Friday (Late Start)', group:null, blocks: [
     {start:'08:30', end:'09:42'},
     {start:'09:48', end:'11:00'},
     {start:'11:40', end:'12:52'},
     {start:'12:58', end:'14:10'}
+  ]},
+  monThuAssembly1: { label:'Class → Assembly', group:'Mon–Thu Assembly', blocks: [
+    {start:'07:30', end:'08:40'},
+    {start:'08:45', end:'09:55'},
+    {start:'11:45', end:'12:55'},
+    {start:'13:00', end:'14:10'}
+  ]},
+  monThuAssembly2: { label:'Assembly → Class', group:'Mon–Thu Assembly', blocks: [
+    {start:'07:30', end:'08:40'},
+    {start:'09:55', end:'11:05'},
+    {start:'11:45', end:'12:55'},
+    {start:'13:00', end:'14:10'}
+  ]},
+  fridayAmAssembly1: { label:'Class → Assembly', group:'Friday AM Assembly', blocks: [
+    {start:'08:30', end:'09:20'},
+    {start:'09:25', end:'10:35'},
+    {start:'12:25', end:'13:15'},
+    {start:'13:20', end:'14:10'}
+  ]},
+  fridayAmAssembly2: { label:'Assembly → Class', group:'Friday AM Assembly', blocks: [
+    {start:'08:30', end:'09:20'},
+    {start:'10:35', end:'11:45'},
+    {start:'12:25', end:'13:15'},
+    {start:'13:20', end:'14:10'}
+  ]},
+  fridayPmAssembly1: { label:'Class → Assembly', group:'Friday PM Assembly', blocks: [
+    {start:'08:30', end:'09:20'},
+    {start:'09:25', end:'10:15'},
+    {start:'10:55', end:'12:05'},
+    {start:'13:20', end:'14:10'}
+  ]},
+  fridayPmAssembly2: { label:'Assembly → Class', group:'Friday PM Assembly', blocks: [
+    {start:'08:30', end:'09:20'},
+    {start:'09:25', end:'10:15'},
+    {start:'12:05', end:'13:15'},
+    {start:'13:20', end:'14:10'}
+  ]},
+  intervention: { label:'Intervention Schedule', group:null, blocks: [
+    {start:'07:30', end:'08:45'},
+    {start:'08:50', end:'10:05'},
+    {start:'11:35', end:'12:50'},
+    {start:'12:55', end:'14:10'}
   ]}
 };
+
+// Builds the fullscreen schedule picker's <option>s straight from
+// BELL_SCHEDULES, grouping consecutive entries that share a `group` under
+// one <optgroup> so the two assembly-variant choices read as a pair.
+function scheduleOptionsHtml(){
+  let html = '';
+  let openGroup = null;
+  Object.entries(BELL_SCHEDULES).forEach(([key, sched])=>{
+    if(sched.group !== openGroup){
+      if(openGroup !== null) html += '</optgroup>';
+      if(sched.group !== null) html += `<optgroup label="${escapeAttr(sched.group)}">`;
+      openGroup = sched.group;
+    }
+    html += `<option value="${key}" ${fullscreenScheduleKey===key?'selected':''}>${escapeHtml(sched.label)}</option>`;
+  });
+  if(openGroup !== null) html += '</optgroup>';
+  return html;
+}
 const CLEANUP_LEAD_MIN = 10;
 
 const ICON_CLOSE = '<svg class="fs-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>';
@@ -1603,8 +1673,7 @@ function renderFullscreen(){
       <div class="fs-header-controls">
         <div class="fs-schedule-picker">
           <select onchange="changeFullscreenSchedule(this.value)">
-            <option value="monThu" ${fullscreenScheduleKey==='monThu'?'selected':''}>Monday–Thursday</option>
-            <option value="friday" ${fullscreenScheduleKey==='friday'?'selected':''}>Friday (Late Start)</option>
+            ${scheduleOptionsHtml()}
           </select>
         </div>
         <button class="btn-outline" onclick="closeFullscreen()">${ICON_CLOSE} Close</button>
