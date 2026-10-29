@@ -271,7 +271,7 @@
   /* Out today. Seats are <input> elements, so there is no child to overlay the
      way the projector view does — the field itself has to carry the signal. */
   input.seat.away{
-    color:var(--muted); text-decoration:line-through; text-decoration-thickness:2px;
+    color:var(--muted);
     background:repeating-linear-gradient(135deg,
       var(--surface-sunken) 0 7px, var(--surface) 7px 14px);
   }
