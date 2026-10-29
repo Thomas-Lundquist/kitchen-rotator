@@ -38,7 +38,12 @@ function blankBlock(day, course){
     // whole and a field added inside emptyKitchen() would be undefined on every
     // existing save. A new block field inherits its default for free.
     absent: Array.from({length:NUM_KITCHENS}, ()=>Array(MAX_KITCHEN).fill(false)),
-    absentDate: ''
+    absentDate: '',
+    // Drag-and-drop lets a student sit in another kitchen for today only.
+    // tempOrigin[ki][seat] is null when whoever is sitting there belongs
+    // there, or {ki,seat} naming the home seat they were dragged out of.
+    // See swapSeats()/clearTempMoves() below for how it's kept correct.
+    tempOrigin: Array.from({length:NUM_KITCHENS}, ()=>Array(MAX_KITCHEN).fill(null))
   };
 }
 
@@ -76,6 +81,7 @@ function normalizeState(parsed){
           // render path has to cope with a ragged array.
           absentGrid(blocks[id]);
           expireAbsences(blocks[id]);
+          ensureTempOrigin(blocks[id]);
         }
       });
     });
@@ -283,9 +289,136 @@ function applyAbsentNames(block, sets){
   });
 }
 
+// --- TEMPORARY CROSS-KITCHEN MOVES (drag and drop) ---
+//
+// Dragging a student onto another kitchen is meant to cover one day — "K3 is
+// short two people today, borrow them from K1" — without disturbing the real
+// rotation. So this works directly on block.kitchens[ki].students, the same
+// array the rotation itself reads, rather than a display-only overlay: a
+// visiting student really is a member of the destination kitchen for today,
+// which is what makes them count for that kitchen's duty and show up under
+// it in the participation history recorded before the next Advance. What
+// keeps it temporary is tempOrigin, which remembers the way back and gets
+// unwound (clearTempMoves) before the kitchen's own rotation logic runs.
+
+// Repairs a grid that is missing, short, or came in from a hand-edited
+// backup — same shape of fix as absentGrid().
+function ensureTempOrigin(block){
+  if(!Array.isArray(block.tempOrigin)) block.tempOrigin = [];
+  for(let ki=0; ki<NUM_KITCHENS; ki++){
+    if(!Array.isArray(block.tempOrigin[ki])) block.tempOrigin[ki] = [];
+    while(block.tempOrigin[ki].length < MAX_KITCHEN) block.tempOrigin[ki].push(null);
+  }
+  return block.tempOrigin;
+}
+
+function isVisiting(block, ki, ci){
+  const origin = ensureTempOrigin(block);
+  return !!(origin[ki] && origin[ki][ci]);
+}
+
+function blankTempOrigin(){
+  return Array.from({length:NUM_KITCHENS}, ()=>Array(MAX_KITCHEN).fill(null));
+}
+
+// Exchanges whoever is currently sitting in two seats — the one primitive
+// behind dragging a student onto another kitchen, swapping with whoever is
+// already there, and "Return to home kitchen". Self-inverse: calling it again
+// with the same two seats undoes it.
+//
+// tempOrigin tracks each seat's TRUE home through any number of these swaps
+// by coalescing through whatever pointer is already there, so a student who
+// gets dragged through two or three kitchens in one day still has a way back
+// to where they started, and clearTempMoves() below can always find it.
+function swapSeats(block, aKi, aSeat, bKi, bSeat){
+  if(aKi === bKi && aSeat === bSeat) return;
+  const k = block.kitchens;
+  const absentG = absentGrid(block);
+  const origin = ensureTempOrigin(block);
+
+  [k[aKi].students[aSeat], k[bKi].students[bSeat]] = [k[bKi].students[bSeat], k[aKi].students[aSeat]];
+  [absentG[aKi][aSeat], absentG[bKi][bSeat]] = [absentG[bKi][bSeat], absentG[aKi][aSeat]];
+
+  const originA = origin[aKi][aSeat] || {ki:aKi, seat:aSeat};
+  const originB = origin[bKi][bSeat] || {ki:bKi, seat:bSeat};
+  origin[aKi][aSeat] = (originB.ki===aKi && originB.seat===aSeat) ? null : originB;
+  origin[bKi][bSeat] = (originA.ki===bKi && originA.seat===bSeat) ? null : originA;
+}
+
+// Puts every seat back where it started this morning in one pass, undoing
+// every temporary cross-kitchen move at once. Safe to call even when nothing
+// has moved. Writes into a fresh copy rather than swapping in place: each
+// displaced seat's true home is itself displaced (tempOrigin always pairs
+// seats up this way — see swapSeats above), so an in-place swap loop would
+// process the same pair twice and could clobber one side before it's read.
+function clearTempMoves(block){
+  const origin = ensureTempOrigin(block);
+  let any = false;
+  origin.forEach(row=>row.forEach(o=>{ if(o) any = true; }));
+  if(!any) return;
+
+  const cur = block.kitchens.map(k=>k.students.slice());
+  const curAbsent = absentGrid(block).map(row=>row.slice());
+  const homeStudents = cur.map(arr=>arr.slice());
+  const homeAbsent = curAbsent.map(row=>row.slice());
+
+  for(let ki=0; ki<NUM_KITCHENS; ki++){
+    for(let seat=0; seat<MAX_KITCHEN; seat++){
+      const o = origin[ki][seat];
+      if(o){
+        homeStudents[o.ki][o.seat] = cur[ki][seat];
+        homeAbsent[o.ki][o.seat] = curAbsent[ki][seat];
+      }
+    }
+  }
+  block.kitchens.forEach((k,ki)=>{ k.students = homeStudents[ki]; });
+  const absentG = absentGrid(block);
+  for(let ki=0; ki<NUM_KITCHENS; ki++) absentG[ki] = homeAbsent[ki];
+  block.tempOrigin = blankTempOrigin();
+}
+
+// Drag-and-drop entry point: ki/ci identify the STORED seat (data-ci), same
+// indexing updateSeat() already writes to.
+function moveStudentToKitchen(blockId, srcKi, srcCi, dstKi, dstCi){
+  const block = state.blocks[blockId];
+  if(!block) return;
+  const srcName = block.kitchens[srcKi].students[srcCi];
+  if(!isRealStudent(srcName)) return;
+  const dstName = block.kitchens[dstKi].students[dstCi];
+
+  swapSeats(block, srcKi, srcCi, dstKi, dstCi);
+  saveState();
+  renderDayPanel(block.day);
+  if(fullscreenBlockId === blockId) renderFullscreen();
+  showToast(isRealStudent(dstName)
+    ? `${srcName} and ${dstName} swapped kitchens for today. Resets at the next rotation.`
+    : `${srcName} moved to K${dstKi+1} for today. Resets at the next rotation.`);
+}
+
+function returnSeatHome(blockId, ki, ci){
+  const block = state.blocks[blockId];
+  if(!block) return;
+  const origin = ensureTempOrigin(block);
+  const o = origin[ki] && origin[ki][ci];
+  if(!o) return;
+  const name = block.kitchens[ki].students[ci];
+  swapSeats(block, ki, ci, o.ki, o.seat);
+  saveState();
+  renderDayPanel(block.day);
+  if(fullscreenBlockId === blockId) renderFullscreen();
+  showToast(`${name || 'Student'} returned to K${o.ki+1}.`);
+}
+
 // Rotation
 function advanceBlock(blockId){
   const block = state.blocks[blockId];
+  // Temporary moves cover one day. The rotation itself has to run on the real
+  // home rosters — a visitor's turn at K3's job titles would otherwise follow
+  // them home and scramble K3's own cycle — so this unwinds BEFORE anything
+  // below reads block.kitchens. Participation credit for the day that just
+  // ended is unaffected: buildRotationRecord() already ran, against the
+  // swapped seating, before advanceBlock() was ever called.
+  clearTempMoves(block);
   const active = activeKitchenIdxs(block);
   // Whether anybody was actually here for the session now ending is what
   // decides if the duty cursor moves on, and it has to be read BEFORE the
@@ -330,6 +463,10 @@ function saveBlockOriginal(blockId){
   block.kitchens.forEach(k=>{ k.original = k.students.slice(); });
   block.dutyIndex = 0;
   block.centerSink = 0;
+  // Wherever everyone happens to be sitting right now — including anyone
+  // dragged in for the day — becomes their new permanent kitchen, so there is
+  // nothing left to call a temporary visit.
+  block.tempOrigin = blankTempOrigin();
   lastRotation = null;   // the cursors this would restore have just been reset
   refreshDuties(blockId, false);
   saveState();
@@ -351,6 +488,7 @@ function restoreBlockOriginal(blockId){
   applyAbsentNames(block, away);
   block.dutyIndex = 0;
   block.centerSink = 0;
+  block.tempOrigin = blankTempOrigin();  // the roster is being rebuilt from scratch
   lastRotation = null;   // the seating this would have put back no longer exists
   refreshDuties(blockId, false);
   saveState();
@@ -376,10 +514,18 @@ function snapshotBlocks(ids, label){
     // (rebuilt by refreshDuties), and `absent` — attendance is carried across
     // by name on restore instead, so undoing a rotation does not also undo the
     // register you took after it.
+    //
+    // tempOrigin IS captured, unlike absent: advanceBlock() unwinds every
+    // temporary move before it reads the roster, so without this an undo
+    // would bring the pre-rotation seating back but leave it mislabeled as
+    // everyone's permanent kitchen — and if that block rotated again, a
+    // visitor would rotate through jobs in a kitchen that was never really
+    // theirs.
     blocks[id] = {
       kitchens: b.kitchens.map(k=>k.students.slice()),
       dutyIndex: b.dutyIndex,
-      centerSink: b.centerSink
+      centerSink: b.centerSink,
+      tempOrigin: ensureTempOrigin(b).map(row=>row.map(o=>o && {ki:o.ki, seat:o.seat}))
     };
   });
   lastRotation = { label, blocks, batchId: null };
@@ -398,6 +544,7 @@ function undoLastRotation(){
     applyAbsentNames(b, away);      // marks land on the seats people are restored INTO
     b.dutyIndex  = s.dutyIndex;
     b.centerSink = s.centerSink;
+    b.tempOrigin = s.tempOrigin ? s.tempOrigin.map(row=>row.map(o=>o && {ki:o.ki, seat:o.seat})) : blankTempOrigin();
     refreshDuties(id, false);       // no increment: the cursors are already right
   });
   if(snap.batchId) removeHistoryBatch(snap.batchId);
@@ -755,6 +902,7 @@ function confirmImport(){
   // undo would restore a roster these names never sat in.
   block.absent = Array.from({length:NUM_KITCHENS}, ()=>Array(MAX_KITCHEN).fill(false));
   block.absentDate = '';
+  block.tempOrigin = blankTempOrigin();
   lastRotation = null;
   refreshDuties(importTargetBlock, false);
   saveState();
@@ -832,8 +980,9 @@ function seatChrome(block, active, ki, ci, row){
   const v = block.kitchens[ki].students[ci];
   const isSplitSlot = !isEmpty && !isRealStudent(v);
   const isAway = !isEmpty && isRealStudent(v) && isAbsent(block, ki, ci);
+  const isVisit = !isEmpty && isRealStudent(v) && isVisiting(block, ki, ci);
   return {
-    isEmpty, isSplitSlot, isAway,
+    isEmpty, isSplitSlot, isAway, isVisit,
     placeholder: (isEmpty && row===0) ? '+ add kitchen' : (isSplitSlot ? 'SPLIT' : '')
   };
 }
@@ -859,6 +1008,8 @@ function refreshBlockChrome(blockId){
     el.classList.toggle('empty', c.isEmpty);
     el.classList.toggle('split-placeholder', c.isSplitSlot);
     el.classList.toggle('away', c.isAway);
+    el.classList.toggle('visiting', c.isVisit);
+    el.draggable = !c.isEmpty && !c.isSplitSlot;
     el.placeholder = c.placeholder; // never el.value: that is what the user is typing
   });
   // Duty and sink read from the DISPLAY maps, which refreshDuties builds from
@@ -940,8 +1091,11 @@ function renderDayPanel(day){
         const raw = block.kitchens[ki].students[ci] || '';
         const val = isRealStudent(raw) ? raw : '';
         const hint = c.placeholder ? ` placeholder="${c.placeholder}"` : '';
-        const away = c.isAway ? ' title="Out today — this job is shared by the kitchen"' : '';
-        html += `<input class="seat ${c.isSplitSlot?'split-placeholder':''} ${c.isAway?'away':''} ${c.isEmpty?'empty':''}" value="${escapeAttr(val)}"${hint}${away}
+        const title = c.isAway ? ' title="Out today — this job is shared by the kitchen"'
+          : c.isVisit ? ' title="Visiting from another kitchen today — drag back, or right-click to return"' : '';
+        const draggable = (!c.isEmpty && !c.isSplitSlot) ? 'true' : 'false';
+        html += `<input class="seat ${c.isSplitSlot?'split-placeholder':''} ${c.isAway?'away':''} ${c.isVisit?'visiting':''} ${c.isEmpty?'empty':''}" value="${escapeAttr(val)}"${hint}${title}
+          draggable="${draggable}"
           data-block="${id}" data-k="${ki}" data-r="${r}" data-ci="${ci}"
           oninput="updateSeat('${id}',${ki},${ci},this.value)">`;
       }
@@ -1181,12 +1335,27 @@ function closeMenu(){
 }
 document.addEventListener('click', closeMenu);
 
+function hasTempMoves(block){
+  return ensureTempOrigin(block).some(row=>row.some(Boolean));
+}
+
+function resetTempMoves(blockId){
+  const block = state.blocks[blockId];
+  if(!block) return;
+  clearTempMoves(block);
+  saveState();
+  render();
+  showToast(`${blockId}: everyone moved back to their own kitchen.`);
+}
+
 function blockMenuHtml(id){
+  const moved = hasTempMoves(state.blocks[id]);
   return `
     <button onclick="openAbsenceModal('${id}');">${ICON_ABSENT}Attendance&hellip;</button>
     <button onclick="openHistoryModal('${id}');">${ICON_HISTORY}Rotation history</button>
     <button onclick="saveBlockOriginal('${id}'); render();">${ICON_SAVE}Save as original</button>
     <button onclick="restoreBlockOriginal('${id}');">${ICON_RESTORE}Restore to original</button>
+    ${moved ? `<button onclick="resetTempMoves('${id}');">${ICON_RESTORE}Reset temporary moves</button>` : ''}
     <button onclick="openImportModal('${id}');">${ICON_IMPORT}Import roster</button>
     <button onclick="removeClass('${id}');" style="color:var(--bad);">${ICON_TRASH}Remove this class</button>
   `;
@@ -1262,10 +1431,104 @@ document.addEventListener('contextmenu', e=>{
   if(!block || !isRealStudent(block.kitchens[ki].students[ci])) return;
   e.preventDefault();
   const away = isAbsent(block, ki, ci);
+  const visiting = isVisiting(block, ki, ci);
   openMenu(e, el, `
     <button onclick="markAbsentFromSeat('${blockId}',${ki},${ci},${!away})">${away ? ICON_RESTORE : ICON_ABSENT}Mark ${away ? 'present' : 'absent'}</button>
     <button onclick="openAbsenceModal('${blockId}')">${ICON_ABSENT}Attendance&hellip;</button>
+    ${visiting ? `<button onclick="returnSeatHome('${blockId}',${ki},${ci})">${ICON_RESTORE}Return to home kitchen</button>` : ''}
   `);
+});
+
+// Alt-click a seat to mark it absent/present on the spot, without opening the
+// context menu or the Attendance modal. Has to run on mousedown and call
+// preventDefault() there — by the time a click event fires the browser has
+// already focused the input and dropped a caret into it, which is exactly
+// the editing mode an alt-click is meant to skip.
+document.addEventListener('mousedown', e=>{
+  const el = e.target;
+  if(!el.classList || !el.classList.contains('seat') || !el.dataset.block) return;
+  if(!e.altKey) return;
+  const blockId = el.dataset.block, ki = +el.dataset.k, ci = +el.dataset.ci;
+  const block = state.blocks[blockId];
+  if(!block || !isRealStudent(block.kitchens[ki].students[ci])) return;
+  e.preventDefault();
+  markAbsentFromSeat(blockId, ki, ci, !isAbsent(block, ki, ci));
+});
+
+// Alt-click a name on the fullscreen board too — it's the view actually on
+// screen during class, so marking someone absent shouldn't require switching
+// back to the editable grid.
+document.addEventListener('click', e=>{
+  const el = e.target.closest ? e.target.closest('.fs-gname') : null;
+  if(!el || !el.dataset.block) return;
+  if(!e.altKey) return;
+  const blockId = el.dataset.block, ki = +el.dataset.k, ci = +el.dataset.ci;
+  const block = state.blocks[blockId];
+  if(!block || !isRealStudent(block.kitchens[ki].students[ci])) return;
+  markAbsentFromSeat(blockId, ki, ci, !isAbsent(block, ki, ci));
+});
+
+// --- DRAG AND DROP: moving a student into another kitchen for the day ---
+//
+// Plain HTML5 drag-and-drop on the seat inputs themselves. Setting
+// draggable="true" on an <input> (done in refreshBlockChrome/renderDayPanel)
+// takes the element itself over for dragging instead of the browser's normal
+// drag-to-select-text behaviour, so this works even though the seat is still
+// a live editable field the rest of the time.
+let dragSource = null; // {blockId, ki, ci} — the STORED seat being dragged
+
+document.addEventListener('dragstart', e=>{
+  const el = e.target;
+  if(!el.classList || !el.classList.contains('seat') || !el.dataset.block){ return; }
+  const blockId = el.dataset.block, ki = +el.dataset.k, ci = +el.dataset.ci;
+  const block = state.blocks[blockId];
+  if(!block || !isRealStudent(block.kitchens[ki].students[ci])){ e.preventDefault(); return; }
+  dragSource = { blockId, ki, ci };
+  e.dataTransfer.effectAllowed = 'move';
+  // Firefox refuses to start a drag with no data set on it.
+  e.dataTransfer.setData('text/plain', block.kitchens[ki].students[ci]);
+  el.classList.add('dragging');
+});
+
+document.addEventListener('dragend', e=>{
+  if(e.target.classList) e.target.classList.remove('dragging');
+  document.querySelectorAll('.seat.drag-over').forEach(x=>x.classList.remove('drag-over'));
+  dragSource = null;
+});
+
+// A kitchen is a valid drop target for its OWN seats only when dragging from
+// a DIFFERENT kitchen — reordering within one kitchen is a same-day detail a
+// teacher types directly, not something meant to unwind at the next rotation.
+function isValidDropTarget(el){
+  return dragSource && el.classList && el.classList.contains('seat')
+    && el.dataset.block === dragSource.blockId && +el.dataset.k !== dragSource.ki;
+}
+
+document.addEventListener('dragover', e=>{
+  if(!isValidDropTarget(e.target)) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+});
+
+document.addEventListener('dragenter', e=>{
+  if(!isValidDropTarget(e.target)) return;
+  e.preventDefault();
+  e.target.classList.add('drag-over');
+});
+
+document.addEventListener('dragleave', e=>{
+  if(e.target.classList) e.target.classList.remove('drag-over');
+});
+
+document.addEventListener('drop', e=>{
+  if(!isValidDropTarget(e.target)) return;
+  e.preventDefault();
+  const el = e.target;
+  el.classList.remove('drag-over');
+  const dstKi = +el.dataset.k, dstCi = +el.dataset.ci;
+  const { blockId, ki: srcKi, ci: srcCi } = dragSource;
+  dragSource = null;
+  moveStudentToKitchen(blockId, srcKi, srcCi, dstKi, dstCi);
 });
 
 function markAbsentFromSeat(blockId, ki, ci, on){
@@ -1637,12 +1900,14 @@ function renderFullscreen(){
         const ci = orders[ki][r];
         const name = block.kitchens[ki].students[ci];
         if(!isRealStudent(name)){ gridHtml += `<div class="fs-gsplit">SPLIT</div>`; return; }
+        const attrs = ` data-block="${fullscreenBlockId}" data-k="${ki}" data-ci="${ci}"`;
+        const visitTag = isVisiting(block, ki, ci) ? '<span class="fs-visit-tag">VISITING</span>' : '';
         // Out today: the name stays at full size and a veil lies ON TOP of the
         // cell. An overlay takes no height from the grid, where a stacked
         // ABSENT line would have cost every other name on the board a row.
         gridHtml += isAbsent(block, ki, ci)
-          ? `<div class="fs-gname fs-gaway">${escapeHtml(name)}<span class="fs-away-veil"><b>ABSENT</b><i>SPLIT</i></span></div>`
-          : `<div class="fs-gname">${escapeHtml(name)}</div>`;
+          ? `<div class="fs-gname fs-gaway"${attrs}>${escapeHtml(name)}<span class="fs-away-veil"><b>ABSENT</b><i>SPLIT</i></span></div>`
+          : `<div class="fs-gname${visitTag?' fs-gvisit':''}"${attrs}>${escapeHtml(name)}${visitTag}</div>`;
       });
     }
 

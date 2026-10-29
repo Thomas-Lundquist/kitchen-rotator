@@ -276,6 +276,15 @@
       var(--surface-sunken) 0 7px, var(--surface) 7px 14px);
   }
   input.seat.away:focus{background:var(--c1-tint);}
+  /* Drag and drop: a seat can be picked up whenever it holds a real name. */
+  input.seat[draggable="true"]{cursor:grab;}
+  input.seat.dragging{opacity:.35;}
+  /* A kitchen currently armed to receive the drag in progress. */
+  input.seat.drag-over{outline:2px dashed var(--c2); outline-offset:-2px; background:var(--c2-tint);}
+  /* Sitting here for today only, dragged in from another kitchen — gone at the
+     next rotation (see clearTempMoves in app.js). */
+  input.seat.visiting{box-shadow:inset 0 0 0 2px var(--c2);}
+  input.seat.visiting:focus{background:var(--c1-tint);}
   .seat-label{
     box-sizing:border-box; height:46px; display:flex; align-items:center; justify-content:flex-end;
     padding:0 12px; font-size:.82rem; font-weight:600; color:var(--char);
@@ -574,6 +583,17 @@
   }
   .fs-away-veil b{ color:var(--fs-away-ink); font-weight:800; }
   .fs-away-veil i{ color:var(--bad); font-size:.8em; letter-spacing:.08em; font-style:italic; }
+
+  /* Sitting here for today only (dragged in from another kitchen) — resets at
+     the next rotation. */
+  .fs-gvisit{ box-shadow:inset 0 0 0 3px var(--c2), inset 0 1px 0 var(--cell-sheen); }
+  .fs-visit-tag{
+    position:absolute; top:2px; right:2px; overflow:hidden; pointer-events:none;
+    background:var(--c2); color:#fff;
+    font-family:var(--font-display); font-stretch:var(--font-stretch-display);
+    font-weight:700; letter-spacing:.06em; font-size:9px; line-height:1;
+    padding:2px 4px; border-radius:2px; white-space:nowrap;
+  }
 
   /* A kitchen with nobody in today draws no duty at all. */
   .fs-gduty.fs-gduty-out{ opacity:.25; }
